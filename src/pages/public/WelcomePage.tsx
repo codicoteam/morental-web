@@ -8,7 +8,7 @@ import {
   Sun,
   Moon,
 } from "lucide-react";
-import { useTheme } from "../components/themecontext";
+import { useTheme } from "../../components/ThemeProvider";
 
 const Welcome = () => {
   const [currentSlide, setCurrentSlide] = React.useState(0);
@@ -212,16 +212,20 @@ const Welcome = () => {
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-6 justify-center">
-                  <button className="relative bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white px-10 py-4 rounded-2xl text-lg font-bold transition-all transform hover:scale-110 shadow-2xl hover:shadow-cyan-300 overflow-hidden group">
-                    <span className="relative z-10 flex items-center justify-center">
-                      Login
+                  <button
+                onClick={() => (window.location.href = "/roles")}
+              className="relative bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white px-10 py-4 rounded-2xl text-lg font-bold transition-all transform hover:scale-110 shadow-2xl hover:shadow-cyan-300 overflow-hidden group"
+                  >
+                <span className="relative z-10 flex items-center justify-center">
+                     Login
                       <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                    </span>
+                       </span>
                     <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                  </button>
+                </button>
+
 
                   <button
-                    className={`border-2 ${
+                    onClick={() => (window.location.href = "/signup")} className={`border-2 ${
                       isDarkMode
                         ? "border-white/20 hover:border-cyan-400/50 text-white hover:bg-white/10"
                         : "border-gray-300 hover:border-cyan-500 text-gray-900 hover:bg-cyan-50/50"

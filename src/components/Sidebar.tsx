@@ -13,7 +13,7 @@ import { NavLink } from "react-router-dom";
 const Sidebar = ({ isOpen = true, onClose = () => {} }) => {
   const sidebarItems = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-    { icon: Car, label: "Vehicles", path: "/vehicles" },
+    { icon: Car, label: "Vehicles", path: "/vehicless" },
     { icon: Calendar, label: "Bookings", path: "/bookings" },
     { icon: Users, label: "Customers", path: "/customers" },
     { icon: PersonStandingIcon, label: "Staff/Users", path: "/staff" },

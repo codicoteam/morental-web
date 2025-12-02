@@ -26,7 +26,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import Sidebar from "../components/sidebar";
+import Sidebar from "../../components/Sidebar";
 
 const Dashboard = () => {
   const [isDarkMode] = useState(false);

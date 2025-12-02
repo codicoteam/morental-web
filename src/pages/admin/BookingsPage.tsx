@@ -18,7 +18,7 @@ import {
   RefreshCw,
   FileText,
 } from "lucide-react";
-import Sidebar from "../components/sidebar";
+import Sidebar from "../../components/Sidebar";
 
 type Booking = {
   id: string;
