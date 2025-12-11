@@ -19,6 +19,7 @@ import Service from "../pages/customer/CustomerServicePage";
 import Profile from "../pages/customer/CustomerProfilePage";
 import Drivers from "../pages/customer/CustomerDriversPage";
 import BookingPage from "../pages/customer/Bookingpage";
+import ChatScreen from "../pages/customer/Chat";
 
 function App() {
   return (
@@ -45,6 +46,8 @@ function App() {
           <Route path="/profile" element={<Profile/>} />
           <Route path="/driver" element={<Drivers/>} />
           <Route path="/book/:id" element={<BookingPage/>} />
+           <Route path="/chart" element={<ChatScreen/>} />
+
 
        </Routes>
       </Router>

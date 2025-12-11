@@ -5,6 +5,7 @@ import {
   User,
   LogOut,
   X,
+  BarChart3,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import Logo from "../assets/Logo.png";
@@ -15,6 +16,7 @@ const Sidebar = ({ isOpen = true, onClose = () => {} }) => {
     { icon: Car, label: "Vehicles", path: "/vehicle" },
      { icon: User, label: "Drivers", path: "/driver" },
     { icon: Calendar, label: "Reservations", path: "/reservations" },
+    { icon: BarChart3, label: "Chart", path: "/chart" },
     { icon: User, label: "Profile", path: "/profile" },
     { icon: LogOut, label: "Logout", path: "/logout" },
   ];

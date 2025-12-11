@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MapPin, Search, Menu, ChevronDown, Users, Filter, Car as CarIcon } from 'lucide-react';
+import { MapPin, Search, Menu, ChevronDown, Filter, Car as CarIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from "../../components/CustomerSidebar";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
