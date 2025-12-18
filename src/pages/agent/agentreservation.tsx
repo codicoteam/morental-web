@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Clock, Search, Menu, Phone, Mail, AlertCircle, Filter, X, Eye, User, Car, CreditCard, FileText, CalendarDays, Tag, Gauge, Shield, Image } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
-import Sidebar from '../../components/CustomerSidebar';
+import Sidebar from '../../components/agentsidebar';
 import { fetchReservations } from '../../features/reservation/reservationthunks';
 import { selectReservations, selectReservationsLoading, selectReservationsError } from '../../features/reservation/reservationSelectors';
 import type { AppDispatch } from '../../app/store';
@@ -129,7 +129,7 @@ interface TransformedReservation {
   discounts: Array<{ name: string; amount: string }>;
 }
 
-const Reservation = () => {
+const AgentReservation = () => {
   const dispatch = useDispatch<AppDispatch>();
   const apiResponse = useSelector(selectReservations);
   const isLoading = useSelector(selectReservationsLoading);
@@ -952,4 +952,4 @@ const Reservation = () => {
   );
 };
 
-export default Reservation;
+export default AgentReservation;

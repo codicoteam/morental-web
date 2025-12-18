@@ -3,6 +3,7 @@ import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import { loginUser } from "../../features/auth/authThunks";
 import { resetAuthError } from "../../features/auth/authSlice";
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export default function SignInScreen() {
   const [showPassword, setShowPassword] = useState(false);
@@ -10,23 +11,36 @@ export default function SignInScreen() {
     email: '',
     password: '',
   });
-  const [shouldRedirect, setShouldRedirect] = useState(false);
+  const [] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<string>('');
 
   const dispatch = useAppDispatch();
   const { loading, error, status, user, token } = useAppSelector((state) => state.auth);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Get role from query parameters
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const role = searchParams.get('role');
+    if (role) {
+      setSelectedRole(role);
+      console.log('Selected role from query:', role);
+    }
+  }, [location]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Sign In submitted with:', formData);
+    console.log('Sign In submitted with:', formData, 'Role:', selectedRole);
 
     dispatch(resetAuthError());
 
-    // Dispatch login thunk WITH CONSOLE LOG TO SEE RESPONSE
+    // Dispatch login thunk
     dispatch(loginUser({
       email: formData.email,
       password: formData.password
     })).then((res: any) => {
-      console.log("LOGIN RESPONSE FROM THUNK:", res); 
+      console.log("LOGIN RESPONSE FROM THUNK:", res);
     });
   };
 
@@ -41,13 +55,35 @@ export default function SignInScreen() {
     }
   };
 
-  // Handle successful login - REDIRECT TO DASHBOARD
+  // Handle successful login - REDIRECT TO APPROPRIATE DASHBOARD BASED ON ROLE
   useEffect(() => {
     if (status === 'succeeded' && user && token) {
-      console.log('Login successful! User + Token:', { user, token });
-      setShouldRedirect(true);
+      console.log('Login successful!', { user, token, selectedRole });
+      
+      // Redirect based on selected role
+      switch (selectedRole) {
+        case 'admin':
+          window.location.href = '/dashboard';
+          break;
+        case 'branch-manager':
+          window.location.href = '/branch-manager-dashboard';
+          break;
+        case 'customer':
+          window.location.href = '/dashboardy';
+          break;
+        case 'agent':
+          window.location.href = '/agentdashboard';
+          break;
+        case 'driver':
+          window.location.href = '/driver-dashboard';
+          break;
+        default:
+          // Fallback to generic dashboard if no role selected
+          window.location.href = '/';
+          break;
+      }
     }
-  }, [status, user, token]);
+  }, [status, user, token, selectedRole, navigate]);
 
   // Handle login errors
   useEffect(() => {
@@ -55,11 +91,6 @@ export default function SignInScreen() {
       console.error('Login error:', error);
     }
   }, [error]);
-
-  // Redirect instantly (NO SCREEN DISPLAY)
-  if (shouldRedirect) {
-    window.location.href = '/dashboardy';
-  }
 
   const isLoading = loading || status === 'loading';
 
@@ -88,14 +119,26 @@ export default function SignInScreen() {
       <div className="relative z-10 w-full max-w-md mx-4">
         <div className="backdrop-blur-xl bg-white/10 rounded-3xl shadow-2xl border border-white/20 p-8 transition-all duration-300 hover:scale-[1.02]">
 
-          {/* Header */}
+          {/* Header with Role Indicator */}
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white tracking-tight mb-2">
               Sign In
             </h1>
+            {selectedRole && (
+              <div className="inline-block px-3 py-1 mb-2 bg-blue-500/30 rounded-full border border-blue-400/50">
+                <p className="text-blue-200 text-sm font-medium">
+                  Logging in as: <span className="capitalize font-bold">{selectedRole.replace('-', ' ')}</span>
+                </p>
+              </div>
+            )}
             <p className="text-gray-300 text-sm">
               Welcome back to the exclusive experience
             </p>
+            {!selectedRole && (
+              <p className="text-yellow-300 text-xs mt-2">
+                Note: No role selected. You'll be redirected to default dashboard.
+              </p>
+            )}
           </div>
 
           {/* Error Message */}
@@ -193,12 +236,20 @@ export default function SignInScreen() {
             <p className="text-gray-300 text-sm">
               Don't have an account?{' '}
               <a 
-                href="signup" 
+                href="/signup"
                 className="text-blue-400 font-semibold hover:text-blue-300 transition-colors underline"
               >
                 Signup
               </a>
             </p>
+            <div className="mt-4">
+              <button
+                onClick={() => navigate('/roles')}
+                className="text-gray-400 hover:text-white text-sm transition-colors flex items-center justify-center gap-2 mx-auto"
+              >
+                ← Choose different role
+              </button>
+            </div>
           </div>
         </div>
 

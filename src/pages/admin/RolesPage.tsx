@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { UserCircle, Building2, Users, Headphones, Truck, ChevronRight, Shield } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function RoleSelection() {
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [hoveredRole, setHoveredRole] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setMounted(true);
@@ -57,6 +59,13 @@ export default function RoleSelection() {
       badge: 'On Road',
     }
   ];
+
+  const handleContinue = () => {
+    if (selectedRole) {
+      // Navigate to login with selected role as query parameter
+      navigate(`/login?role=${selectedRole}`);
+    }
+  };
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-black">
@@ -176,9 +185,10 @@ export default function RoleSelection() {
                   )}
                 </button>
 
-                {/* ✅ MOBILE CONTINUE BUTTON UNDER SELECTED ROLE */}
+                {/* MOBILE CONTINUE BUTTON UNDER SELECTED ROLE */}
                 {isSelected && (
-                  <button   onClick={() => (window.location.href = "/login")}
+                  <button
+                    onClick={handleContinue}
                     className="
                       block md:hidden mt-4 w-full max-w-xs 
                       px-6 py-3
@@ -200,9 +210,10 @@ export default function RoleSelection() {
           })}
         </div>
 
-        {/* ✅ DESKTOP CONTINUE BUTTON (Same as before) */}
+        {/* DESKTOP CONTINUE BUTTON */}
         {selectedRole && (
-          <button   onClick={() => (window.location.href = "/login")}
+          <button
+            onClick={handleContinue}
             className="
               hidden md:flex mt-16 px-16 py-5 
               bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600

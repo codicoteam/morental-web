@@ -5,16 +5,21 @@ import { useAppSelector } from "../../app/hooks";
 import { selectVehicles } from '../../features/vehicles/vehiclesSelectors';
 import ServiceOrderService from '../../Services/service_orders';
 import ServiceScheduleService from '../../Services/schedule_service';
-import BookingDetails from '../../components/Bookingdetails';
-import type { Pricing, ServiceOrder, ServiceSchedule } from '../../servicetypes';
+import UserService from '../../Services/users_service'; 
+import BookingDetails from '../../components/agent/agentbookingmodal';
+import type { Pricing, ServiceOrder, ServiceSchedule, User as UserType } from '../../servicetypes';
 
-const BookingPage = () => {
+const AgentbookingPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const vehicles = useAppSelector(selectVehicles);
   const [pricing, setPricing] = useState<Pricing | null>(null);
   const [serviceOrders, setServiceOrders] = useState<ServiceOrder[]>([]);
   const [serviceSchedules, setServiceSchedules] = useState<ServiceSchedule[]>([]);
+  const [, setUsers] = useState<UserType[]>([]);
+  const [selectedUserId] = useState<string>('');
+  const [selectedUser] = useState<UserType | null>(null);
+  const [, setLoadingUsers] = useState(false);
   const [loadingServiceOrders, setLoadingServiceOrders] = useState(false);
   const [loadingServiceSchedules, setLoadingServiceSchedules] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -57,16 +62,17 @@ const BookingPage = () => {
         console.log("Service Orders API Response:", ordersResponse);
 
         // Extract service orders from the response
+        let ordersData: ServiceOrder[] = [];
         if (ordersResponse && ordersResponse.data && Array.isArray(ordersResponse.data)) {
           console.log("Service Orders Data:", ordersResponse.data);
-          setServiceOrders(ordersResponse.data);
+          ordersData = ordersResponse.data;
         } else if (Array.isArray(ordersResponse)) {
           console.log("Service Orders (direct array):", ordersResponse);
-          setServiceOrders(ordersResponse);
+          ordersData = ordersResponse;
         } else {
           console.warn("Unexpected service orders format:", ordersResponse);
-          setServiceOrders([]);
         }
+        setServiceOrders(ordersData || []);
       } catch (error) {
         console.error('Error fetching service orders:', error);
         setServiceOrders([]);
@@ -81,16 +87,17 @@ const BookingPage = () => {
         console.log("Service Schedules API Response:", schedulesResponse);
 
         // Extract service schedules from the response
+        let schedulesData: ServiceSchedule[] = [];
         if (schedulesResponse && schedulesResponse.data && Array.isArray(schedulesResponse.data)) {
           console.log("Service Schedules Data:", schedulesResponse.data);
-          setServiceSchedules(schedulesResponse.data);
+          schedulesData = schedulesResponse.data;
         } else if (Array.isArray(schedulesResponse)) {
           console.log("Service Schedules (direct array):", schedulesResponse);
-          setServiceSchedules(schedulesResponse);
+          schedulesData = schedulesResponse;
         } else {
           console.warn("Unexpected service schedules format:", schedulesResponse);
-          setServiceSchedules([]);
         }
+        setServiceSchedules(schedulesData || []);
       } catch (error) {
         console.error('Error fetching service schedules:', error);
         setServiceSchedules([]);
@@ -100,7 +107,44 @@ const BookingPage = () => {
     };
 
     fetchServiceData();
-  }, []); // Empty dependency array - fetch once when component mounts
+  }, []);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setLoadingUsers(true);
+      try {
+        // Fetch users from your UserService
+        const usersResponse = await UserService.getAllUsers();
+        console.log("Users API Response:", usersResponse);
+
+        // Extract users from the response
+        let usersData: UserType[] = [];
+        if (usersResponse && usersResponse.data && Array.isArray(usersResponse.data)) {
+          console.log("Users Data:", usersResponse.data);
+          usersData = usersResponse.data;
+        } else if (Array.isArray(usersResponse)) {
+          console.log("Users (direct array):", usersResponse);
+          usersData = usersResponse;
+        } else if (usersResponse && typeof usersResponse === 'object') {
+          // Try to extract array from other possible structures
+          const keys = Object.keys(usersResponse);
+          if (keys.length === 1 && Array.isArray(usersResponse[keys[0]])) {
+            usersData = usersResponse[keys[0]];
+          }
+        } else {
+          console.warn("Unexpected users format:", usersResponse);
+        }
+        setUsers(usersData || []);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        setUsers([]);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
 
   const getPricingArray = (): Pricing[] => {
     console.log("Processing vehicles state:", vehicles);
@@ -125,6 +169,28 @@ const BookingPage = () => {
     return [];
   };
 
+  const handleCreateBookingOnBehalf = async (bookingData: any) => {
+    try {
+      // Add agent booking flags to the booking data
+      const bookingDataWithAgent = {
+        ...bookingData,
+        bookedByAgent: true,
+        agentId: 'current-agent-id', // You'll need to get the actual agent ID from your auth system
+      };
+
+      // Call your booking API with the modified data
+      console.log('Creating booking as agent with data:', bookingDataWithAgent);
+      
+      // Handle success
+      alert('Booking successfully created!');
+      // Optionally navigate or refresh data
+      
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      alert('Failed to create booking. Please try again.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50">
@@ -143,10 +209,10 @@ const BookingPage = () => {
           <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="w-10 h-10 text-red-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Vehicle Not Found</h2>
-          <p className="text-gray-600 mb-6">The vehicle you're looking for doesn't exist or is no longer available.</p>
+         
+         
           <button
-            onClick={() => navigate('/vehicle')}
+            onClick={() => navigate('/agent')}
             className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-8 py-3 rounded-lg font-semibold shadow-lg transition-all transform hover:scale-105"
           >
             Back to Vehicles
@@ -158,11 +224,12 @@ const BookingPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-cyan-50">
+      {/* Header with Back Button */}
       <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md shadow-lg border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
+          <div className="flex items-center h-20">
             <button
-              onClick={() => navigate('/vehicle')}
+              onClick={() => navigate('/agent')}
               className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors group"
             >
               <div className="p-2 rounded-lg bg-gray-100 group-hover:bg-blue-100 transition-colors">
@@ -170,23 +237,26 @@ const BookingPage = () => {
               </div>
               <span className="font-medium">Back to Vehicles</span>
             </button>
-
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-              Complete Your Booking
-            </h1>
           </div>
         </div>
       </div>
 
-      <BookingDetails
-        pricing={pricing}
-        serviceOrders={serviceOrders}
-        serviceSchedules={serviceSchedules}
-        loadingServiceOrders={loadingServiceOrders}
-        loadingServiceSchedules={loadingServiceSchedules}
-      />
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Booking Details Component */}
+        <BookingDetails
+          pricing={pricing}
+          serviceOrders={serviceOrders}
+          serviceSchedules={serviceSchedules}
+          loadingServiceOrders={loadingServiceOrders}
+          loadingServiceSchedules={loadingServiceSchedules}
+          selectedUserId={selectedUserId}
+          selectedUser={selectedUser}
+          onCreateBookingOnBehalf={handleCreateBookingOnBehalf}
+        />
+      </div>
     </div>
   );
 };
 
-export default BookingPage;
+export default AgentbookingPage;

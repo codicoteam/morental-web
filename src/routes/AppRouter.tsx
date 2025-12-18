@@ -21,6 +21,18 @@ import Drivers from "../pages/customer/CustomerDriversPage";
 import BookingPage from "../pages/customer/Bookingpage";
 import ChatScreen from "../pages/customer/Chat";
 
+
+
+//Agent Pages
+import AgentDashboard from "../pages/agent/agentdashboard";
+import AgentbookingPage from "../pages/agent/agentbooking";
+import UsersListScreen from "../pages/agent/users";
+import AgentVehicles from "../pages/agent/agentvihicles";
+import Agentdrivers from "../pages/agent/agentdriver";
+import AgentReservation from "../pages/agent/agentreservation";
+import AgentChatScreen from "../pages/agent/agentchart";
+import AgentProfile from "../pages/agent/agentprofile";
+
 function App() {
   return (
     <ThemeProvider>
@@ -47,6 +59,17 @@ function App() {
           <Route path="/driver" element={<Drivers/>} />
           <Route path="/book/:id" element={<BookingPage/>} />
            <Route path="/chart" element={<ChatScreen/>} />
+
+           //Agent Routes
+            <Route path="/agentdashboard" element={<AgentDashboard/>} />
+            <Route path="/agentbook/:id" element={<AgentbookingPage/>} />
+            <Route path="/user" element={<UsersListScreen/>} />
+            <Route path="/agent" element={<AgentVehicles/>} />
+            <Route path="/agentdriver" element={<Agentdrivers/>} />
+            <Route path="/agentreservations" element={<AgentReservation/>} />
+            <Route path="/agentchart" element={<AgentChatScreen/>} />
+             <Route path="/agentprofile" element={<AgentProfile/>} />
+
 
 
        </Routes>

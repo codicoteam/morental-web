@@ -3,10 +3,11 @@ import {
   ChevronRight, MapPin, Menu, Bell, Users, Car as CarIcon, 
   Calendar, CheckCircle, AlertCircle, X, Award, Star, 
   Globe, Briefcase, CheckCircle as CheckCircleIcon,
+  User, ChevronDown,
   type LucideIcon
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import Sidebar from '../../components/CustomerSidebar';
+import Sidebar from '../../components/agentsidebar';
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import { fetchVehicles } from '../../features/vehicles/vehiclesThunks';
 import { selectVehicles, selectVehiclesLoading, selectVehiclesError } from '../../features/vehicles/vehiclesSelectors';
@@ -14,6 +15,7 @@ import { fetchDrivers } from '../../features/driver/driverthunks';
 import { selectDrivers, selectLoading, selectError } from '../../features/driver/driverSelectors';
 import { fetchReservations } from '../../features/reservation/reservationthunks';
 import { selectReservations, selectReservationsLoading, selectReservationsError } from '../../features/reservation/reservationSelectors';
+import UserService from '../../Services/users_service';
 
 interface Pricing {
   _id: string;
@@ -77,14 +79,23 @@ interface NotificationItem {
   read: boolean;
 }
 
+interface User {
+  _id: string;
+  full_name: string;
+  email: string;
+  phone_number?: string;
+  role: string;
+}
+
 interface BookingDrawerData {
   driver: Driver;
   hours: number;
   totalAmount: number;
   bookingDate: string;
   specialInstructions: string;
+  selectedUserId: string;
+  selectedUserName: string;
 }
-
 
 interface StatCard {
   label: string;
@@ -95,12 +106,27 @@ interface StatCard {
   text: string;
 }
 
-const Dashboardy = () => {
+interface UsersApiResponse {
+  success: boolean;
+  data?: {
+    items?: User[];
+    users?: User[];
+    data?: User[];
+  };
+  users?: User[];
+  items?: User[];
+}
+
+const AgentDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [showBookingDrawer, setShowBookingDrawer] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [bookingDrawerData, setBookingDrawerData] = useState<BookingDrawerData | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const navigate = useNavigate();
 
   const dispatch = useAppDispatch();
@@ -118,6 +144,7 @@ const Dashboardy = () => {
     dispatch(fetchVehicles());
     dispatch(fetchDrivers());
     dispatch(fetchReservations());
+    fetchUsers();
   }, [dispatch]);
 
   useEffect(() => {
@@ -127,12 +154,66 @@ const Dashboardy = () => {
         hours: 1,
         totalAmount: selectedDriver.hourly_rate,
         bookingDate: new Date().toISOString().split('T')[0],
-        specialInstructions: ''
+        specialInstructions: '',
+        selectedUserId: '',
+        selectedUserName: ''
       });
     }
   }, [selectedDriver]);
 
-  const handleBookNow = (pricingInfo: Pricing) => navigate(`/book/${pricingInfo._id}`);
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    setUsersError(null);
+    try {
+      const response: UsersApiResponse = await UserService.getAllUsers();
+      
+      if (response.success) {
+        let usersArray: User[] = [];
+        
+        // Check different possible response structures
+        if (Array.isArray(response.data)) {
+          usersArray = response.data;
+        } else if (response.data && Array.isArray(response.data.items)) {
+          usersArray = response.data.items;
+        } else if (response.data && Array.isArray(response.data.users)) {
+          usersArray = response.data.users;
+        } else if (response.data && Array.isArray(response.data.data)) {
+          usersArray = response.data.data;
+        } else if (Array.isArray(response.users)) {
+          usersArray = response.users;
+        } else if (Array.isArray(response.items)) {
+          usersArray = response.items;
+        } else if (response.data && typeof response.data === 'object') {
+          // If data is an object, convert it to an array
+          usersArray = Object.values(response.data).filter(item => typeof item === 'object' && item !== null && '_id' in item
+          ) as unknown as User[];
+        }
+        
+        console.log('Users data structure:', response);
+        console.log('Extracted users array:', usersArray);
+        
+        // Filter for customer users only (excluding agents/admins if needed)
+        const customerUsers = usersArray.filter((user: User) => 
+          user && user.role && (user.role === 'customer' || user.role === 'user')
+        );
+        
+        setUsers(customerUsers);
+        
+        if (customerUsers.length === 0) {
+          console.warn('No customer users found in the response');
+        }
+      } else {
+        setUsersError('Failed to load users: API returned unsuccessful response');
+      }
+    } catch (error: any) {
+      setUsersError(error.message || 'Failed to load users');
+      console.error('Error fetching users:', error);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const handleBookNow = (pricingInfo: Pricing) => navigate(`/agentbook/${pricingInfo._id}`);
   const handleBookDriver = (driver: Driver) => {
     if (driver.is_available) {
       setSelectedDriver(driver);
@@ -197,18 +278,60 @@ const Dashboardy = () => {
     !driver.is_available ? 'Unavailable' : 
     driver.status.charAt(0).toUpperCase() + driver.status.slice(1);
 
-  const handleConfirmBooking = () => {
+  const handleConfirmBooking = async () => {
     if (!selectedDriver || !bookingDrawerData) return;
-    setShowBookingDrawer(false);
-    setSelectedDriver(null);
-    setBookingDrawerData(null);
-    alert(`✅ Booking confirmed! ${selectedDriver.user_id.full_name} has been booked for ${bookingDrawerData.hours} hour(s) at $${bookingDrawerData.totalAmount}`);
+    
+    if (!bookingDrawerData.selectedUserId) {
+      alert('Please select a customer to book for');
+      return;
+    }
+
+    try {
+      // Here you would make the API call to book the driver for the selected customer
+      // For now, we'll just show a confirmation alert
+      setShowBookingDrawer(false);
+      setSelectedDriver(null);
+      setBookingDrawerData(null);
+      
+      alert(`✅ Booking confirmed! 
+Driver: ${selectedDriver.user_id.full_name}
+Customer: ${bookingDrawerData.selectedUserName}
+Hours: ${bookingDrawerData.hours}
+Total: $${bookingDrawerData.totalAmount}
+Date: ${new Date(bookingDrawerData.bookingDate).toLocaleDateString()}
+Special Instructions: ${bookingDrawerData.specialInstructions || 'None'}`);
+      
+      // In a real implementation, you would call an API here:
+      // const bookingData = {
+      //   driver_id: selectedDriver._id,
+      //   user_id: bookingDrawerData.selectedUserId,
+      //   hours: bookingDrawerData.hours,
+      //   total_amount: bookingDrawerData.totalAmount,
+      //   booking_date: bookingDrawerData.bookingDate,
+      //   special_instructions: bookingDrawerData.specialInstructions
+      // };
+      // await DriverBookingService.createBooking(bookingData);
+      
+    } catch (error) {
+      console.error('Booking error:', error);
+      alert('Failed to create booking. Please try again.');
+    }
   };
 
   const handleHoursChange = (hours: number) => {
     if (!bookingDrawerData || !selectedDriver) return;
     const newHours = Math.max(1, Math.min(24, hours));
     setBookingDrawerData({ ...bookingDrawerData, hours: newHours, totalAmount: newHours * selectedDriver.hourly_rate });
+  };
+
+  const handleUserSelect = (user: User) => {
+    if (!bookingDrawerData) return;
+    setBookingDrawerData({
+      ...bookingDrawerData,
+      selectedUserId: user._id,
+      selectedUserName: user.full_name
+    });
+    setShowUserDropdown(false);
   };
 
   const pricingArray = getPricingArray();
@@ -299,7 +422,7 @@ const Dashboardy = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold">Confirm Booking</h2>
-                <p className="text-blue-100 mt-1">Complete your booking with {selectedDriver.user_id.full_name}</p>
+                <p className="text-blue-100 mt-1">Book {selectedDriver.user_id.full_name} for a customer</p>
               </div>
               <button 
                 onClick={() => { 
@@ -372,6 +495,73 @@ const Dashboardy = () => {
             <div className="border-t border-gray-200 pt-6">
               <h4 className="text-lg font-semibold text-gray-900 mb-4">Booking Details</h4>
               <div className="space-y-4">
+                {/* Customer Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Customer <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowUserDropdown(!showUserDropdown)}
+                      className={`w-full p-3 border ${!bookingDrawerData.selectedUserId ? 'border-gray-300' : 'border-blue-500'} rounded-xl flex items-center justify-between bg-white hover:bg-gray-50 transition-colors`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <User className="w-5 h-5 text-gray-400" />
+                        <span className={bookingDrawerData.selectedUserId ? "text-gray-900 font-medium" : "text-gray-500"}>
+                          {bookingDrawerData.selectedUserName || "Select a customer..."}
+                        </span>
+                      </div>
+                      <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showUserDropdown ? 'transform rotate-180' : ''}`} />
+                    </button>
+                    
+                    {showUserDropdown && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                        {usersLoading ? (
+                          <div className="p-4 text-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                            <p className="text-sm text-gray-500 mt-2">Loading users...</p>
+                          </div>
+                        ) : usersError ? (
+                          <div className="p-4 text-center text-red-600 text-sm">
+                            {usersError}
+                          </div>
+                        ) : users.length === 0 ? (
+                          <div className="p-4 text-center text-gray-500 text-sm">
+                            No customers found. {usersError ? `Error: ${usersError}` : 'Please add customers first.'}
+                          </div>
+                        ) : (
+                          users.map((user) => (
+                            <button
+                              key={user._id}
+                              type="button"
+                              onClick={() => handleUserSelect(user)}
+                              className="w-full p-3 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0 flex items-center gap-3"
+                            >
+                              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                <User className="w-4 h-4 text-blue-600" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-900">{user.full_name}</p>
+                                <p className="text-xs text-gray-500">{user.email}</p>
+                                {user.phone_number && (
+                                  <p className="text-xs text-gray-500">{user.phone_number}</p>
+                                )}
+                              </div>
+                              {bookingDrawerData.selectedUserId === user._id && (
+                                <CheckCircleIcon className="w-5 h-5 text-green-500" />
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {!bookingDrawerData.selectedUserId && (
+                    <p className="text-red-500 text-xs mt-1">Please select a customer to continue</p>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Hours Required</label>
                   <div className="flex items-center gap-4">
@@ -456,13 +646,26 @@ const Dashboardy = () => {
                 Cancel
               </button>
               <button 
-                onClick={handleConfirmBooking} 
-                className="px-6 py-3 bg-gradient-to-r from-blue-800 to-cyan-600 text-white rounded-xl font-semibold shadow-lg hover:opacity-90 transition-opacity flex-1 flex items-center justify-center gap-2"
+                onClick={handleConfirmBooking}
+                disabled={!bookingDrawerData.selectedUserId}
+                className={`px-6 py-3 rounded-xl font-semibold shadow-lg transition-all flex-1 flex items-center justify-center gap-2 ${
+                  bookingDrawerData.selectedUserId
+                    ? 'bg-gradient-to-r from-blue-800 to-cyan-600 text-white hover:opacity-90'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
               >
-                <CheckCircleIcon className="w-5 h-5" />Confirm Booking
+                <CheckCircleIcon className="w-5 h-5" />
+                Book for Customer
               </button>
             </div>
-            <p className="text-xs text-gray-500 text-center mt-4">By confirming, you agree to our terms and conditions</p>
+            <p className="text-xs text-gray-500 text-center mt-4">
+              By confirming, you agree to our terms and conditions
+              {bookingDrawerData.selectedUserName && (
+                <span className="block mt-1 text-green-600">
+                  Booking will be created for: <strong>{bookingDrawerData.selectedUserName}</strong>
+                </span>
+              )}
+            </p>
           </div>
         </div>
       </div>
@@ -506,7 +709,7 @@ const Dashboardy = () => {
                 <div className="flex items-center gap-3 hover:bg-gray-50 rounded-xl p-2 cursor-pointer">
                   <div className="text-right hidden sm:block">
                     <p className="text-sm font-semibold text-gray-800">John Doe</p>
-                    <p className="text-xs text-gray-500">Customer</p>
+                    <p className="text-xs text-gray-500">Agent</p>
                   </div>
                   <div className="relative">
                     <div className="w-10 h-10 bg-gradient-to-r from-blue-800 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg">
@@ -523,8 +726,8 @@ const Dashboardy = () => {
         <div className="flex-1 overflow-y-auto pt-20">
           <div className="max-w-7xl mx-auto p-8">
             <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, John!</h2>
-              <p className="text-gray-600 text-lg">Here's what's happening with your bookings today</p>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, Agent John!</h2>
+              <p className="text-gray-600 text-lg">Book vehicles and drivers for customers</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -790,8 +993,9 @@ const Dashboardy = () => {
 
       {showBookingDrawer && <BookingDrawer />}
       {notificationsOpen && <div className="fixed inset-0 z-30" onClick={() => setNotificationsOpen(false)} />}
+      {showUserDropdown && <div className="fixed inset-0 z-40" onClick={() => setShowUserDropdown(false)} />}
     </div>
   );
 };
 
-export default Dashboardy;
+export default AgentDashboard;
