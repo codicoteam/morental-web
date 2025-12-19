@@ -18,6 +18,7 @@ const Sidebar = ({ isOpen = true, onClose = () => {} }) => {
     { icon: Calendar, label: "Reservations", path: "/reservations" },
     { icon: BarChart3, label: "Chart", path: "/chart" },
     { icon: User, label: "Profile", path: "/profile" },
+    { icon: User, label: "Notification", path: "/notification" },
     { icon: LogOut, label: "Logout", path: "/logout" },
   ];
 

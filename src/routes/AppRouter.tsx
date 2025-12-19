@@ -20,6 +20,7 @@ import Profile from "../pages/customer/CustomerProfilePage";
 import Drivers from "../pages/customer/CustomerDriversPage";
 import BookingPage from "../pages/customer/Bookingpage";
 import ChatScreen from "../pages/customer/Chat";
+import NotificationScreen from "../pages/customer/notification";
 
 
 
@@ -59,6 +60,8 @@ function App() {
           <Route path="/driver" element={<Drivers/>} />
           <Route path="/book/:id" element={<BookingPage/>} />
            <Route path="/chart" element={<ChatScreen/>} />
+           <Route path="/notification" element={<NotificationScreen/>} />
+
 
            //Agent Routes
             <Route path="/agentdashboard" element={<AgentDashboard/>} />

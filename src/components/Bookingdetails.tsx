@@ -1,4 +1,4 @@
-import { useState, useEffect, type JSXElementConstructor, type ReactElement, type ReactNode, type ReactPortal, type Key } from 'react';
+  import { useState, useEffect, type JSXElementConstructor, type ReactElement, type ReactNode, type ReactPortal, type Key } from 'react';
 import { 
   MapPin, 
   Users, 
@@ -17,12 +17,15 @@ import {
   User,
   IdCard,
   Check,
-  ChevronDown
+  Smartphone,
+  QrCode,
+  ExternalLink
 } from 'lucide-react';
 import ServiceMaintenanceSection from '../components/servicemaintanance';
 import type { Pricing, ServiceOrder, ServiceSchedule } from '../servicetypes';
 import ReservationService from '../Services/bookvihicle_service'; 
-import UserService from '../Services/users_service'; // Import the UserService
+import UserService from '../Services/users_service'; 
+import PaymentService from '../Services/payment_service';
 
 interface BookingDetailsProps {
   pricing: Pricing;
@@ -32,7 +35,6 @@ interface BookingDetailsProps {
   loadingServiceSchedules: boolean;
 }
 
-// Define user type based on the API response
 interface User {
   _id: string;
   email: string;
@@ -42,6 +44,37 @@ interface User {
   status: string;
   email_verified: boolean;
   auth_providers: any[];
+  created_at: string;
+  updated_at: string;
+  __v: number;
+}
+
+type PaymentMethod = 'paynow' | 'mobile' | 'card';
+type PaymentStatus = 'pending' | 'paid' | 'failed' | 'cancelled';
+
+interface PaymentData {
+  id?: string;
+  pollUrl?: string;
+  status?: PaymentStatus;
+  paymentUrl?: string;
+  mobilePaymentInstructions?: string;
+  amount?: number;
+  bookingCode?: string;
+}
+
+interface ReservationResponse {
+  _id: string;
+  id?: string;
+  code: string;
+  vehicle_id: any;
+  vehicle_model_id: any;
+  pickup: any;
+  dropoff: any;
+  pricing: any;
+  payment_summary: any;
+  driver_snapshot: any;
+  notes: string;
+  status: string;
   created_at: string;
   updated_at: string;
   __v: number;
@@ -57,13 +90,19 @@ const BookingDetails = ({
   const [selectedPhoto, setSelectedPhoto] = useState(0);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
-  const [, setBookingCode] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [bookingCode, setBookingCode] = useState('');
   const [bookingSuccessData, setBookingSuccessData] = useState<{
     code: string;
     vehicle: string;
     total: string;
     email: string;
+    phone: string;
+    fullName: string;
+    reservationId?: string;
+    paymentStatus?: PaymentStatus;
   } | null>(null);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   
@@ -86,17 +125,30 @@ const BookingDetails = ({
     notes: ''
   });
 
-  // New state for users
-  const [users, setUsers] = useState<User[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [usersError, setUsersError] = useState<string | null>(null);
-  const [showUsersDropdown, setShowUsersDropdown] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [paymentData, setPaymentData] = useState<PaymentData>({});
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>('paynow');
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [showPaymentInstructions, setShowPaymentInstructions] = useState(false);
+  const [isPollingPayment, setIsPollingPayment] = useState(false);
+  const [paymentPollingInterval, setPaymentPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
-  // Fetch users on component mount
+  const [, setUsers] = useState<User[]>([]);
+  const [, setLoadingUsers] = useState(false);
+  const [, setUsersError] = useState<string | null>(null);
+  const [, setSelectedUser] = useState<User | null>(null);
+
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (paymentPollingInterval) {
+        clearInterval(paymentPollingInterval);
+      }
+    };
+  }, [paymentPollingInterval]);
 
   const fetchUsers = async () => {
     try {
@@ -104,8 +156,6 @@ const BookingDetails = ({
       setUsersError(null);
       const response = await UserService.getAllUsers();
       
-      // The API response might be in different formats
-      // Check if it's an array or has a data property
       if (Array.isArray(response)) {
         setUsers(response);
       } else if (response.data && Array.isArray(response.data)) {
@@ -123,17 +173,6 @@ const BookingDetails = ({
     } finally {
       setLoadingUsers(false);
     }
-  };
-
-  const handleSelectUser = (user: User) => {
-    setSelectedUser(user);
-    setBookingForm({
-      ...bookingForm,
-      fullName: user.full_name,
-      email: user.email,
-      phone: user.phone
-    });
-    setShowUsersDropdown(false);
   };
 
   const generateBookingCode = () => {
@@ -185,8 +224,169 @@ const BookingDetails = ({
     setSubmitError(null);
   };
 
+  const startPaymentPolling = (paymentId: string) => {
+    if (paymentPollingInterval) {
+      clearInterval(paymentPollingInterval);
+    }
+
+    const interval = setInterval(async () => {
+      try {
+        const statusResponse = await PaymentService.pollPaymentStatus(paymentId);
+        
+        if (statusResponse.status === 'paid') {
+          setIsPollingPayment(false);
+          clearInterval(interval);
+          
+          setBookingSuccessData(prev => prev ? {
+            ...prev,
+            paymentStatus: 'paid'
+          } : null);
+          
+          setTimeout(() => {
+            setShowPaymentModal(false);
+            setShowSuccessPopup(true);
+            
+            setTimeout(() => {
+              setShowSuccessPopup(false);
+            }, 10000);
+          }, 2000);
+        } else if (statusResponse.status === 'failed' || statusResponse.status === 'cancelled') {
+          setIsPollingPayment(false);
+          clearInterval(interval);
+          setPaymentError(`Payment ${statusResponse.status}. Please try again.`);
+        }
+      } catch (error) {
+        console.error('Payment polling error:', error);
+      }
+    }, 5000);
+
+    setPaymentPollingInterval(interval);
+  };
+
+  const handleInitiatePayment = async () => {
+    if (!bookingSuccessData?.reservationId) {
+      setPaymentError('Reservation ID not found. Please try booking again.');
+      return;
+    }
+
+    if (!bookingSuccessData?.phone) {
+      setPaymentError('Phone number is required for payment.');
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    setPaymentError(null);
+
+    try {
+      // Create payment payload with proper structure for PayNow
+      const paymentPayload = {
+        reservation_id: bookingSuccessData.reservationId,
+        booking_code: bookingSuccessData.code,
+        amount: calculateTotal(),
+        currency: pricing.currency,
+        payment_method: selectedPaymentMethod,
+        customer: {
+          email: bookingSuccessData.email,
+          phone: bookingSuccessData.phone,
+          name: bookingSuccessData.fullName
+        },
+        // Add phone number at root level for PayNow compatibility
+        phone: bookingSuccessData.phone,
+        email: bookingSuccessData.email,
+        name: bookingSuccessData.fullName,
+        metadata: {
+          vehicle_name: pricing.name,
+          branch_name: branch.name,
+          days: bookingDetails.days,
+          insurance: bookingDetails.insurance
+        }
+      };
+
+      console.log('Initiating payment with payload:', paymentPayload);
+
+      let paymentResponse;
+
+      if (selectedPaymentMethod === 'mobile') {
+        paymentResponse = await PaymentService.initiateMobilePayment(paymentPayload);
+      } else {
+        paymentResponse = await PaymentService.initiatePayment(paymentPayload);
+      }
+
+      console.log('Payment response:', paymentResponse);
+
+      if (paymentResponse && paymentResponse.success === false) {
+        throw new Error(paymentResponse.message || 'Payment initiation failed');
+      }
+
+      setPaymentData({
+        id: paymentResponse.id || paymentResponse.paymentId || paymentResponse._id,
+        pollUrl: paymentResponse.pollUrl || paymentResponse.poll_url,
+        status: paymentResponse.status || 'pending',
+        paymentUrl: paymentResponse.paymentUrl || paymentResponse.url || paymentResponse.payment_url,
+        mobilePaymentInstructions: paymentResponse.instructions || paymentResponse.mobile_instructions,
+        amount: calculateTotal(),
+        bookingCode: bookingSuccessData.code
+      });
+
+      if (paymentResponse.id || paymentResponse.paymentId || paymentResponse._id) {
+        setIsPollingPayment(true);
+        startPaymentPolling(paymentResponse.id || paymentResponse.paymentId || paymentResponse._id);
+      }
+
+      if (selectedPaymentMethod === 'mobile') {
+        setShowPaymentInstructions(true);
+      }
+
+    } catch (error: any) {
+      console.error('Payment initiation failed:', error);
+      let errorMessage = 'Failed to initiate payment. Please try again.';
+      
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error?.response?.data) {
+        const apiError = error.response.data;
+        if (apiError.message) {
+          errorMessage = apiError.message;
+        } else if (apiError.error) {
+          errorMessage = apiError.error;
+        }
+      }
+      
+      setPaymentError(errorMessage);
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const handleOpenPaymentLink = () => {
+    if (paymentData.paymentUrl) {
+      window.open(paymentData.paymentUrl, '_blank');
+    }
+  };
+
+  const handleCheckPaymentStatus = async () => {
+    if (!paymentData.id) return;
+    
+    try {
+      const statusResponse = await PaymentService.getPaymentStatus(paymentData.id);
+      setPaymentData(prev => ({
+        ...prev,
+        status: statusResponse.status
+      }));
+      
+      if (statusResponse.status === 'paid') {
+        setShowPaymentModal(false);
+        setShowSuccessPopup(true);
+      }
+    } catch (error) {
+      console.error('Failed to check payment status:', error);
+      setPaymentError('Failed to check payment status');
+    }
+  };
+
   const handleSubmitBooking = async () => {
-    // Validate required fields
     if (!bookingForm.fullName || !bookingForm.phone || !bookingForm.email || 
         !bookingForm.licenseNumber || !bookingForm.licenseExpiry || 
         !bookingDetails.startDate || !bookingDetails.endDate) {
@@ -195,6 +395,7 @@ const BookingDetails = ({
     }
 
     const generatedBookingCode = generateBookingCode();
+    const totalAmount = calculateTotal();
     const bookingData = {
       code: generatedBookingCode,
       created_channel: "web",
@@ -228,13 +429,13 @@ const BookingDetails = ({
           amount: (parseDecimal(pricing.daily_rate) * bookingDetails.days * tax.rate).toFixed(2)
         })),
         discounts: [],
-        grand_total: calculateTotal().toFixed(2),
+        grand_total: totalAmount.toFixed(2),
         computed_at: new Date().toISOString()
       },
       payment_summary: {
         status: "unpaid",
         paid_total: "0.00",
-        outstanding: calculateTotal().toFixed(2),
+        outstanding: totalAmount.toFixed(2),
         last_payment_at: null
       },
       driver_snapshot: {
@@ -256,22 +457,90 @@ const BookingDetails = ({
       setIsSubmitting(true);
       setSubmitError(null);
       
+      console.log('Creating reservation with data:', bookingData);
+      
       // Call the ReservationService to create the reservation
       const response = await ReservationService.createReservation(bookingData);
       
-      // Success - show success popup
-      const actualBookingCode = response?.code || generatedBookingCode;
+      console.log('Reservation response:', response);
       
+      // Extract reservation ID from response
+      let reservationId: string | undefined;
+      let actualBookingCode: string;
+      
+      // Handle different response formats
+      if (response && typeof response === 'object') {
+        // Check for direct response
+        reservationId = response._id || response.id;
+        actualBookingCode = response.code || generatedBookingCode;
+        
+        // Check for nested responses
+        if (!reservationId && response.data) {
+          const data = response.data;
+          reservationId = data._id || data.id;
+          actualBookingCode = data.code || generatedBookingCode;
+        }
+        
+        if (!reservationId && response.reservation) {
+          const reservation = response.reservation;
+          reservationId = reservation._id || reservation.id;
+          actualBookingCode = reservation.code || generatedBookingCode;
+        }
+        
+        // If still no reservationId, try to extract from any nested object
+        if (!reservationId) {
+          const findIdInObject = (obj: any): string | undefined => {
+            if (obj._id) return obj._id;
+            if (obj.id) return obj.id;
+            if (obj.reservation_id) return obj.reservation_id;
+            
+            for (const key in obj) {
+              if (typeof obj[key] === 'object' && obj[key] !== null) {
+                const found = findIdInObject(obj[key]);
+                if (found) return found;
+              }
+            }
+            return undefined;
+          };
+          
+          reservationId = findIdInObject(response);
+        }
+      } else {
+        actualBookingCode = generatedBookingCode;
+      }
+      
+      if (!reservationId) {
+        // Try one more approach - look for any string that looks like an ID
+        const responseString = JSON.stringify(response);
+        const idMatch = responseString.match(/"[_a-zA-Z0-9]{20,}"/);
+        if (idMatch) {
+          reservationId = idMatch[0].replace(/"/g, '');
+        }
+      }
+      
+      if (!reservationId) {
+        throw new Error('Reservation ID not found in response. Response: ' + JSON.stringify(response));
+      }
+      
+      console.log('Extracted reservation ID:', reservationId);
+      console.log('Booking code:', actualBookingCode);
+      
+      // Store ALL booking data including phone number for payment
       setBookingSuccessData({
         code: actualBookingCode,
         vehicle: pricing.name,
-        total: formatCurrency(calculateTotal()),
-        email: bookingForm.email
+        total: formatCurrency(totalAmount),
+        email: bookingForm.email,
+        phone: bookingForm.phone,
+        fullName: bookingForm.fullName,
+        reservationId: reservationId
       });
       
       setBookingCode(actualBookingCode);
-      setShowSuccessPopup(true);
+      
+      // Show payment modal instead of success popup
       setShowBookingModal(false);
+      setShowPaymentModal(true);
       
       // Reset form
       setBookingForm({
@@ -286,15 +555,9 @@ const BookingDetails = ({
       });
       setSelectedUser(null);
       
-      // Auto-hide success popup after 8 seconds
-      setTimeout(() => {
-        setShowSuccessPopup(false);
-      }, 8000);
-      
     } catch (error: any) {
       console.error('Booking failed:', error);
       
-      // Handle different error formats
       let errorMessage = 'Failed to create booking. Please try again.';
       
       if (error?.message) {
@@ -302,7 +565,6 @@ const BookingDetails = ({
       } else if (typeof error === 'string') {
         errorMessage = error;
       } else if (error?.response?.data) {
-        // Try to extract error message from API response
         const apiError = error.response.data;
         if (apiError.message) {
           errorMessage = apiError.message;
@@ -321,11 +583,10 @@ const BookingDetails = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Small Success Popup - Positioned on the right */}
+      {/* Small Success Popup */}
       {showSuccessPopup && bookingSuccessData && (
         <div className="fixed top-6 right-6 z-50 max-w-md">
           <div className="bg-white rounded-xl shadow-2xl border border-green-200 overflow-hidden">
-            {/* Success Header */}
             <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
@@ -343,22 +604,37 @@ const BookingDetails = ({
               </div>
             </div>
 
-            {/* Success Body */}
             <div className="p-4 space-y-3">
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="font-semibold">{bookingSuccessData.vehicle}</span>
                 </div>
                 <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Booking Code:</span>
+                  <span className="font-bold text-blue-600">{bookingSuccessData.code}</span>
+                </div>
+                <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Total:</span>
                   <span className="font-bold text-green-600">{bookingSuccessData.total}</span>
                 </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Payment Status:</span>
+                  <span className="font-bold text-green-600">Paid ✓</span>
+                </div>
+                {bookingSuccessData.reservationId && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Reservation ID:</span>
+                    <span className="font-mono text-xs text-gray-500 truncate max-w-[120px]">
+                      {bookingSuccessData.reservationId}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 border-t border-gray-200">
-                <div className="flex gap-2">
-                  {/* Add any additional success message elements here */}
-                </div>
+                <p className="text-sm text-gray-600">
+                  A confirmation email has been sent to {bookingSuccessData.email}
+                </p>
               </div>
             </div>
           </div>
@@ -369,7 +645,6 @@ const BookingDetails = ({
       {showBookingModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
             <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-6 rounded-t-3xl">
               <div className="flex items-center justify-between">
                 <div>
@@ -386,9 +661,7 @@ const BookingDetails = ({
               </div>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6 space-y-6">
-              {/* Error Message */}
               {submitError && (
                 <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
                   <div className="flex items-center">
@@ -398,81 +671,6 @@ const BookingDetails = ({
                 </div>
               )}
 
-              {/* User Selection Dropdown */}
-              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-5 border-2 border-purple-200">
-                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-purple-600" />
-                  Select Existing User
-                </h3>
-                <div className="relative">
-                  <button
-                    onClick={() => setShowUsersDropdown(!showUsersDropdown)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all flex justify-between items-center hover:bg-gray-50"
-                    disabled={isSubmitting || loadingUsers}
-                  >
-                    <div className="flex items-center gap-3">
-                      <User className="w-5 h-5 text-gray-400" />
-                      {selectedUser ? (
-                        <div className="text-left">
-                          <p className="font-medium text-gray-900">{selectedUser.full_name}</p>
-                          <p className="text-sm text-gray-600">{selectedUser.email}</p>
-                        </div>
-                      ) : (
-                        <span className="text-gray-500">
-                          {loadingUsers ? 'Loading users...' : 'Select a user to auto-fill details'}
-                        </span>
-                      )}
-                    </div>
-                    <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showUsersDropdown ? 'rotate-180' : ''}`} />
-                  </button>
-                  
-                  {showUsersDropdown && (
-                    <div className="absolute z-10 mt-1 w-full bg-white border-2 border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                      {loadingUsers ? (
-                        <div className="p-4 text-center text-gray-500">
-                          Loading users...
-                        </div>
-                      ) : usersError ? (
-                        <div className="p-4 text-center text-red-500">
-                          {usersError}
-                        </div>
-                      ) : users.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500">
-                          No users found
-                        </div>
-                      ) : (
-                        users.map((user) => (
-                          <button
-                            key={user._id}
-                            onClick={() => handleSelectUser(user)}
-                            className="w-full p-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-medium text-gray-900">{user.full_name}</p>
-                                <p className="text-sm text-gray-600">{user.email}</p>
-                                <p className="text-xs text-gray-500">{user.phone}</p>
-                              </div>
-                              {selectedUser?._id === user._id && (
-                                <Check className="w-5 h-5 text-green-500" />
-                              )}
-                            </div>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-                {selectedUser && (
-                  <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                    <p className="text-sm text-green-700">
-                      ✓ {selectedUser.full_name}'s details have been auto-filled
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Booking Summary */}
               <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-5 border-2 border-blue-200">
                 <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
                   <Calendar className="w-5 h-5 text-blue-600" />
@@ -498,7 +696,6 @@ const BookingDetails = ({
                 </div>
               </div>
 
-              {/* Personal Information */}
               <div>
                 <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
                   <User className="w-5 h-5 text-blue-600" />
@@ -530,7 +727,11 @@ const BookingDetails = ({
                       placeholder="+263771234567"
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                       disabled={isSubmitting}
+                      required
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Required for payment processing
+                    </p>
                   </div>
 
                   <div className="md:col-span-2">
@@ -549,7 +750,6 @@ const BookingDetails = ({
                 </div>
               </div>
 
-              {/* Driver License Information */}
               <div>
                 <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
                   <IdCard className="w-5 h-5 text-blue-600" />
@@ -617,7 +817,6 @@ const BookingDetails = ({
                 </div>
               </div>
 
-              {/* Additional Notes */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Additional Notes (Optional)
@@ -633,7 +832,6 @@ const BookingDetails = ({
               </div>
             </div>
 
-            {/* Modal Footer */}
             <div className="sticky bottom-0 bg-gray-50 p-6 rounded-b-3xl border-t-2 border-gray-200">
               <div className="flex gap-4">
                 <button
@@ -666,6 +864,254 @@ const BookingDetails = ({
         </div>
       )}
 
+      {/* Payment Modal */}
+      {showPaymentModal && bookingSuccessData && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-green-600 to-emerald-600 text-white p-6 rounded-t-3xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold mb-1">Complete Payment</h2>
+                  <p className="text-emerald-100">Booking #{bookingSuccessData.code}</p>
+                  {bookingSuccessData.reservationId && (
+                    <p className="text-emerald-200 text-xs mt-1 font-mono">
+                      Reservation ID: {bookingSuccessData.reservationId.substring(0, 8)}...
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                  disabled={isProcessingPayment || isPollingPayment}
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {paymentError && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+                  <div className="flex items-center">
+                    <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+                    <p className="text-red-800 font-medium">{paymentError}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-5 border-2 border-emerald-200">
+                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-emerald-600" />
+                  Payment Summary
+                </h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-600">Vehicle</p>
+                    <p className="font-bold text-gray-900">{bookingSuccessData.vehicle}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Booking Code</p>
+                    <p className="font-bold text-emerald-600">{bookingSuccessData.code}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Amount to Pay</p>
+                    <p className="font-bold text-emerald-600 text-lg">{bookingSuccessData.total}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Status</p>
+                    <p className="font-bold text-amber-600">Payment Required</p>
+                  </div>
+                </div>
+                {bookingSuccessData.reservationId && (
+                  <div className="mt-3 pt-3 border-t border-emerald-200">
+                    <p className="text-xs text-gray-500">
+                      <span className="font-medium">Reservation ID:</span>{' '}
+                      <span className="font-mono">{bookingSuccessData.reservationId}</span>
+                    </p>
+                  </div>
+                )}
+                <div className="mt-3 pt-3 border-t border-emerald-200">
+                  <p className="text-xs text-gray-500">
+                    <span className="font-medium">Phone for payment:</span>{' '}
+                    <span className="font-mono">{bookingSuccessData.phone}</span>
+                  </p>
+                </div>
+              </div>
+
+              {!paymentData.id && (
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-emerald-600" />
+                    Select Payment Method
+                  </h3>
+                  
+                  <div className="space-y-3">
+                    <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                      selectedPaymentMethod === 'paynow' 
+                        ? 'border-emerald-500 bg-gradient-to-r from-emerald-50 to-green-50 shadow-md' 
+                        : 'border-gray-200 hover:border-emerald-300 hover:bg-gray-50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="paynow"
+                        checked={selectedPaymentMethod === 'paynow'}
+                        onChange={() => setSelectedPaymentMethod('paynow')}
+                        className="w-5 h-5 text-emerald-600 mr-3"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-emerald-100 rounded-lg">
+                            <QrCode className="w-5 h-5 text-emerald-600" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-gray-900">PayNow (Zimbabwe)</span>
+                            <p className="text-sm text-gray-600 mt-1">
+                              Scan QR code or pay via online banking
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Phone: {bookingSuccessData.phone}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </label>
+
+                    <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                      selectedPaymentMethod === 'mobile' 
+                        ? 'border-emerald-500 bg-gradient-to-r from-emerald-50 to-green-50 shadow-md' 
+                        : 'border-gray-200 hover:border-emerald-300 hover:bg-gray-50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="mobile"
+                        checked={selectedPaymentMethod === 'mobile'}
+                        onChange={() => setSelectedPaymentMethod('mobile')}
+                        className="w-5 h-5 text-emerald-600 mr-3"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-blue-100 rounded-lg">
+                            <Smartphone className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-gray-900">Mobile Money</span>
+                            <p className="text-sm text-gray-600 mt-1">
+                              EcoCash, OneMoney, Telecash &amp; other mobile wallets
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Phone: {bookingSuccessData.phone}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {showPaymentInstructions && paymentData.mobilePaymentInstructions && (
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-5 border-2 border-blue-200">
+                  <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                    <Smartphone className="w-5 h-5 text-blue-600" />
+                    Mobile Payment Instructions
+                  </h3>
+                  <div className="prose prose-sm max-w-none text-gray-700">
+                    <p className="whitespace-pre-line">{paymentData.mobilePaymentInstructions}</p>
+                  </div>
+                </div>
+              )}
+
+              {paymentData.id && (
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-5 border-2 border-amber-200">
+                  <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-amber-600" />
+                    Payment Status: {paymentData.status?.toUpperCase()}
+                  </h3>
+                  
+                  {paymentData.paymentUrl && (
+                    <div className="mb-4">
+                      <p className="text-gray-700 mb-2">Click the button below to complete your payment:</p>
+                      <button
+                        onClick={handleOpenPaymentLink}
+                        className="w-full py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                      >
+                        <ExternalLink className="w-5 h-5" />
+                        Go to Payment Page
+                      </button>
+                    </div>
+                  )}
+
+                  {isPollingPayment && (
+                    <div className="flex items-center gap-3 text-amber-700">
+                      <svg className="animate-spin h-5 w-5 text-amber-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Waiting for payment confirmation...</span>
+                    </div>
+                  )}
+
+                  <div className="mt-4">
+                    <button
+                      onClick={handleCheckPaymentStatus}
+                      className="text-sm text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Check Payment Status
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="sticky bottom-0 bg-gray-50 p-6 rounded-b-3xl border-t-2 border-gray-200">
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 py-3 px-6 border-2 border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-100 transition-all"
+                  disabled={isProcessingPayment || isPollingPayment}
+                >
+                  {paymentData.id ? 'Close' : 'Cancel'}
+                </button>
+                
+                {!paymentData.id ? (
+                  <button
+                    onClick={handleInitiatePayment}
+                    disabled={isProcessingPayment}
+                    className="flex-1 py-3 px-6 bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all shadow-lg hover:shadow-xl flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {isProcessingPayment ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Processing...
+                      </>
+                    ) : (
+                      `Pay ${bookingSuccessData.total}`
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                      setShowSuccessPopup(true);
+                    }}
+                    className="flex-1 py-3 px-6 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-xl"
+                  >
+                    View Booking Details
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rest of the component remains the same */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Vehicle Details */}
         <div className="lg:col-span-2 space-y-6">
