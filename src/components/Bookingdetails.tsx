@@ -1,4 +1,4 @@
-  import { useState, useEffect, type JSXElementConstructor, type ReactElement, type ReactNode, type ReactPortal, type Key } from 'react';
+import { useState, useEffect, type JSXElementConstructor, type ReactElement, type ReactNode, type ReactPortal, type Key } from 'react';
 import { 
   MapPin, 
   Users, 
@@ -55,11 +55,13 @@ type PaymentStatus = 'pending' | 'paid' | 'failed' | 'cancelled';
 interface PaymentData {
   id?: string;
   pollUrl?: string;
+  redirectUrl?: string;
   status?: PaymentStatus;
   paymentUrl?: string;
   mobilePaymentInstructions?: string;
   amount?: number;
   bookingCode?: string;
+  guid?: string;
 }
 
 interface ReservationResponse {
@@ -131,7 +133,8 @@ const BookingDetails = ({
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [showPaymentInstructions, setShowPaymentInstructions] = useState(false);
   const [isPollingPayment, setIsPollingPayment] = useState(false);
-  const [paymentPollingInterval, setPaymentPollingInterval] = useState<NodeJS.Timeout | null>(null);
+ const [paymentPollingInterval, setPaymentPollingInterval] =useState<ReturnType<typeof setInterval> | null>(null);
+  const [hasRedirectedToPayNow, setHasRedirectedToPayNow] = useState(false);
 
   const [, setUsers] = useState<User[]>([]);
   const [, setLoadingUsers] = useState(false);
@@ -149,6 +152,15 @@ const BookingDetails = ({
       }
     };
   }, [paymentPollingInterval]);
+
+  // Auto-redirect to PayNow when we have the redirectUrl
+  useEffect(() => {
+    if (paymentData.redirectUrl && !hasRedirectedToPayNow) {
+      console.log('Redirecting to PayNow:', paymentData.redirectUrl);
+      window.open(paymentData.redirectUrl, '_blank');
+      setHasRedirectedToPayNow(true);
+    }
+  }, [paymentData.redirectUrl, hasRedirectedToPayNow]);
 
   const fetchUsers = async () => {
     try {
@@ -224,16 +236,19 @@ const BookingDetails = ({
     setSubmitError(null);
   };
 
-  const startPaymentPolling = (paymentId: string) => {
+  const startPaymentPolling = (guid: string) => {
     if (paymentPollingInterval) {
       clearInterval(paymentPollingInterval);
     }
 
     const interval = setInterval(async () => {
       try {
-        const statusResponse = await PaymentService.pollPaymentStatus(paymentId);
+        console.log('Polling payment status with GUID:', guid);
+        const statusResponse = await PaymentService.pollPaymentStatus(guid);
         
-        if (statusResponse.status === 'paid') {
+        console.log('Polling response:', statusResponse);
+        
+        if (statusResponse.status === 'paid' || statusResponse.status === 'Paid') {
           setIsPollingPayment(false);
           clearInterval(interval);
           
@@ -241,6 +256,11 @@ const BookingDetails = ({
             ...prev,
             paymentStatus: 'paid'
           } : null);
+          
+          setPaymentData(prev => ({
+            ...prev,
+            status: 'paid'
+          }));
           
           setTimeout(() => {
             setShowPaymentModal(false);
@@ -250,7 +270,8 @@ const BookingDetails = ({
               setShowSuccessPopup(false);
             }, 10000);
           }, 2000);
-        } else if (statusResponse.status === 'failed' || statusResponse.status === 'cancelled') {
+        } else if (statusResponse.status === 'failed' || statusResponse.status === 'cancelled' || 
+                  statusResponse.status === 'Failed' || statusResponse.status === 'Cancelled') {
           setIsPollingPayment(false);
           clearInterval(interval);
           setPaymentError(`Payment ${statusResponse.status}. Please try again.`);
@@ -274,8 +295,23 @@ const BookingDetails = ({
       return;
     }
 
+    if (!bookingSuccessData?.email) {
+      setPaymentError('Email address is required for payment.');
+      return;
+    }
+
+    // Validate email format more strictly
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    const cleanEmail = bookingSuccessData.email.trim().toLowerCase();
+    
+    if (!emailRegex.test(cleanEmail)) {
+      setPaymentError('Please provide a valid email address (e.g., john@example.com).');
+      return;
+    }
+
     setIsProcessingPayment(true);
     setPaymentError(null);
+    setHasRedirectedToPayNow(false); // Reset redirect flag
 
     try {
       // Create payment payload with proper structure for PayNow
@@ -286,29 +322,57 @@ const BookingDetails = ({
         currency: pricing.currency,
         payment_method: selectedPaymentMethod,
         customer: {
-          email: bookingSuccessData.email,
-          phone: bookingSuccessData.phone,
-          name: bookingSuccessData.fullName
+          email: cleanEmail,
+          phone: bookingSuccessData.phone.trim(),
+          name: bookingSuccessData.fullName.trim()
         },
-        // Add phone number at root level for PayNow compatibility
-        phone: bookingSuccessData.phone,
-        email: bookingSuccessData.email,
-        name: bookingSuccessData.fullName,
+        // PayNow specific required fields
+        phone: bookingSuccessData.phone.trim(),
+        email: cleanEmail,
+        name: bookingSuccessData.fullName.trim(),
         metadata: {
           vehicle_name: pricing.name,
           branch_name: branch.name,
           days: bookingDetails.days,
-          insurance: bookingDetails.insurance
+          insurance: bookingDetails.insurance,
+          reservation_id: bookingSuccessData.reservationId,
+          booking_code: bookingSuccessData.code
         }
       };
 
-      console.log('Initiating payment with payload:', paymentPayload);
+      console.log('Initiating payment with payload:', JSON.stringify(paymentPayload, null, 2));
 
       let paymentResponse;
 
       if (selectedPaymentMethod === 'mobile') {
-        paymentResponse = await PaymentService.initiateMobilePayment(paymentPayload);
+        // For mobile payments, PayNow requires specific field names
+        const mobilePaymentPayload = {
+          reservation_id: bookingSuccessData.reservationId,
+          booking_code: bookingSuccessData.code,
+          amount: calculateTotal(),
+          currency: pricing.currency,
+          payment_method: 'mobile',
+          // PayNow mobile payment required fields
+          email: cleanEmail,
+          phone: bookingSuccessData.phone.trim(),
+          name: bookingSuccessData.fullName.trim(),
+          // Additional fields for mobile payments
+          customer_email: cleanEmail,
+          customer_phone: bookingSuccessData.phone.trim(),
+          customer_name: bookingSuccessData.fullName.trim(),
+          // Mobile specific metadata
+          metadata: {
+            ...paymentPayload.metadata,
+            payment_type: 'mobile',
+            channel: 'web'
+          }
+        };
+        
+        console.log('Mobile payment payload:', JSON.stringify(mobilePaymentPayload, null, 2));
+        paymentResponse = await PaymentService.initiateMobilePayment(mobilePaymentPayload);
       } else {
+        // For PayNow QR/banking
+        console.log('Initiating PayNow payment...');
         paymentResponse = await PaymentService.initiatePayment(paymentPayload);
       }
 
@@ -318,23 +382,48 @@ const BookingDetails = ({
         throw new Error(paymentResponse.message || 'Payment initiation failed');
       }
 
-      setPaymentData({
-        id: paymentResponse.id || paymentResponse.paymentId || paymentResponse._id,
-        pollUrl: paymentResponse.pollUrl || paymentResponse.poll_url,
-        status: paymentResponse.status || 'pending',
-        paymentUrl: paymentResponse.paymentUrl || paymentResponse.url || paymentResponse.payment_url,
-        mobilePaymentInstructions: paymentResponse.instructions || paymentResponse.mobile_instructions,
-        amount: calculateTotal(),
-        bookingCode: bookingSuccessData.code
-      });
+      // Handle PayNow response structure
+      if (paymentResponse.success === true) {
+        // Extract GUID from pollUrl for polling
+        let guid = '';
+        if (paymentResponse.pollUrl) {
+          const guidMatch = paymentResponse.pollUrl.match(/guid=([a-f0-9-]+)/);
+          if (guidMatch && guidMatch[1]) {
+            guid = guidMatch[1];
+          }
+        }
 
-      if (paymentResponse.id || paymentResponse.paymentId || paymentResponse._id) {
-        setIsPollingPayment(true);
-        startPaymentPolling(paymentResponse.id || paymentResponse.paymentId || paymentResponse._id);
-      }
+        setPaymentData({
+          id: guid || paymentResponse.id || paymentResponse.paymentId || paymentResponse._id,
+          pollUrl: paymentResponse.pollUrl || paymentResponse.poll_url,
+          redirectUrl: paymentResponse.redirectUrl || paymentResponse.redirect_url,
+          status: paymentResponse.status || 'pending',
+          paymentUrl: paymentResponse.paymentUrl || paymentResponse.url || paymentResponse.payment_url,
+          mobilePaymentInstructions: paymentResponse.instructions || paymentResponse.mobile_instructions,
+          amount: calculateTotal(),
+          bookingCode: bookingSuccessData.code,
+          guid: guid
+        });
 
-      if (selectedPaymentMethod === 'mobile') {
-        setShowPaymentInstructions(true);
+        console.log('Payment data set:', {
+          redirectUrl: paymentResponse.redirectUrl || paymentResponse.redirect_url,
+          pollUrl: paymentResponse.pollUrl || paymentResponse.poll_url,
+          guid: guid
+        });
+
+        // Start polling if we have a GUID
+        if (guid) {
+          setIsPollingPayment(true);
+          startPaymentPolling(guid);
+        }
+
+        // Show instructions for mobile payments
+        if (selectedPaymentMethod === 'mobile') {
+          setShowPaymentInstructions(true);
+        }
+
+      } else {
+        throw new Error('Payment initiation failed - invalid response structure');
       }
 
     } catch (error: any) {
@@ -352,6 +441,8 @@ const BookingDetails = ({
         } else if (apiError.error) {
           errorMessage = apiError.error;
         }
+      } else if (error?.data?.message) {
+        errorMessage = error.data.message;
       }
       
       setPaymentError(errorMessage);
@@ -361,22 +452,25 @@ const BookingDetails = ({
   };
 
   const handleOpenPaymentLink = () => {
-    if (paymentData.paymentUrl) {
+    if (paymentData.redirectUrl) {
+      window.open(paymentData.redirectUrl, '_blank');
+    } else if (paymentData.paymentUrl) {
       window.open(paymentData.paymentUrl, '_blank');
     }
   };
 
   const handleCheckPaymentStatus = async () => {
-    if (!paymentData.id) return;
+    if (!paymentData.guid && !paymentData.id) return;
     
     try {
-      const statusResponse = await PaymentService.getPaymentStatus(paymentData.id);
+      const guid = paymentData.guid || paymentData.id;
+      const statusResponse = await PaymentService.getPaymentStatus(guid!);
       setPaymentData(prev => ({
         ...prev,
         status: statusResponse.status
       }));
       
-      if (statusResponse.status === 'paid') {
+      if (statusResponse.status === 'paid' || statusResponse.status === 'Paid') {
         setShowPaymentModal(false);
         setShowSuccessPopup(true);
       }
@@ -391,6 +485,15 @@ const BookingDetails = ({
         !bookingForm.licenseNumber || !bookingForm.licenseExpiry || 
         !bookingDetails.startDate || !bookingDetails.endDate) {
       setSubmitError('Please fill in all required fields');
+      return;
+    }
+
+    // Validate email before submitting
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    const cleanEmail = bookingForm.email.trim().toLowerCase();
+    
+    if (!emailRegex.test(cleanEmail)) {
+      setSubmitError('Please enter a valid email address (e.g., john@example.com).');
       return;
     }
 
@@ -439,9 +542,9 @@ const BookingDetails = ({
         last_payment_at: null
       },
       driver_snapshot: {
-        full_name: bookingForm.fullName,
-        phone: bookingForm.phone,
-        email: bookingForm.email,
+        full_name: bookingForm.fullName.trim(),
+        phone: bookingForm.phone.trim(),
+        email: cleanEmail, // Use cleaned email
         driver_license: {
           number: bookingForm.licenseNumber,
           country: bookingForm.licenseCountry,
@@ -530,9 +633,9 @@ const BookingDetails = ({
         code: actualBookingCode,
         vehicle: pricing.name,
         total: formatCurrency(totalAmount),
-        email: bookingForm.email,
-        phone: bookingForm.phone,
-        fullName: bookingForm.fullName,
+        email: cleanEmail, // Use cleaned email
+        phone: bookingForm.phone.trim(),
+        fullName: bookingForm.fullName.trim(),
         reservationId: reservationId
       });
       
@@ -746,6 +849,9 @@ const BookingDetails = ({
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                       disabled={isSubmitting}
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Required for payment confirmation and receipts. Must be valid (e.g., john@example.com)
+                    </p>
                   </div>
                 </div>
               </div>
@@ -936,6 +1042,12 @@ const BookingDetails = ({
                     <span className="font-mono">{bookingSuccessData.phone}</span>
                   </p>
                 </div>
+                <div className="mt-3 pt-3 border-t border-emerald-200">
+                  <p className="text-xs text-gray-500">
+                    <span className="font-medium">Email for confirmation:</span>{' '}
+                    <span className="font-mono">{bookingSuccessData.email}</span>
+                  </p>
+                </div>
               </div>
 
               {!paymentData.id && (
@@ -1003,6 +1115,9 @@ const BookingDetails = ({
                             <p className="text-xs text-gray-500 mt-1">
                               Phone: {bookingSuccessData.phone}
                             </p>
+                            <p className="text-xs text-amber-600 mt-1 font-medium">
+                              Valid email required: {bookingSuccessData.email}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -1030,16 +1145,34 @@ const BookingDetails = ({
                     Payment Status: {paymentData.status?.toUpperCase()}
                   </h3>
                   
-                  {paymentData.paymentUrl && (
+                  {paymentData.redirectUrl && (
                     <div className="mb-4">
-                      <p className="text-gray-700 mb-2">Click the button below to complete your payment:</p>
-                      <button
-                        onClick={handleOpenPaymentLink}
-                        className="w-full py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-                      >
-                        <ExternalLink className="w-5 h-5" />
-                        Go to Payment Page
-                      </button>
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                        <div className="flex items-center gap-3 mb-2">
+                          <ExternalLink className="w-5 h-5 text-green-600" />
+                          <span className="font-semibold text-green-700">Redirecting to PayNow...</span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-3">
+                          You should have been redirected to PayNow. If not, click the button below:
+                        </p>
+                        <button
+                          onClick={handleOpenPaymentLink}
+                          className="w-full py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                        >
+                          <ExternalLink className="w-5 h-5" />
+                          Go to PayNow Payment Page
+                        </button>
+                      </div>
+                      
+                      <div className="text-sm text-gray-600 space-y-2">
+                        <p><span className="font-medium">Payment URL:</span> <span className="text-xs font-mono truncate block">{paymentData.redirectUrl}</span></p>
+                        {paymentData.pollUrl && (
+                          <p><span className="font-medium">Poll URL:</span> <span className="text-xs font-mono truncate block">{paymentData.pollUrl}</span></p>
+                        )}
+                        {paymentData.guid && (
+                          <p><span className="font-medium">Payment GUID:</span> <span className="text-xs font-mono">{paymentData.guid}</span></p>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -1053,10 +1186,10 @@ const BookingDetails = ({
                     </div>
                   )}
 
-                  <div className="mt-4">
+                  <div className="mt-4 flex gap-3">
                     <button
                       onClick={handleCheckPaymentStatus}
-                      className="text-sm text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
+                      className="flex-1 py-2 px-4 bg-emerald-100 text-emerald-700 font-medium rounded-lg hover:bg-emerald-200 transition-colors flex items-center justify-center gap-2"
                     >
                       <CheckCircle className="w-4 h-4" />
                       Check Payment Status

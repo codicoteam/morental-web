@@ -1,15 +1,15 @@
-// Drivers component with booking form modal and payment confirmation
 import { useState, useEffect } from 'react';
 import { 
   MapPin, Search, Menu, User, X, Loader2, 
   Star, Globe, Shield, 
-  Briefcase
+  Briefcase, CheckCircle, AlertCircle
   } from 'lucide-react';
 import Sidebar from '../../components/CustomerSidebar';
 import { useAppDispatch, useAppSelector } from '../../app/hooks';
 import { fetchDrivers } from '../../features/driver/driverthunks'; 
 import { selectDrivers, selectLoading, selectError } from '../../features/driver/driverSelectors';
 import BookingDriverService from '../../Services/boking_service';
+import PaymentService from '../../Services/payment_service';
 import {
   BookingFormModal,
   PaymentConfirmationModal,
@@ -52,6 +52,7 @@ const Drivers: React.FC = () => {
   const [showBookingDrawer, setShowBookingDrawer] = useState(false);
   const [showBookingFormModal, setShowBookingFormModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showPaymentInitiationModal, setShowPaymentInitiationModal] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [showPaymentError, setShowPaymentError] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
@@ -79,12 +80,23 @@ const Drivers: React.FC = () => {
       hours_requested: 1
     }
   });
-  const [, setCreatedBookingId] = useState<string | null>(null);
+  const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
   const [isCreatingBooking, setIsCreatingBooking] = useState(false);
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState<string>('');
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   const [selectedBookingForPayment, setSelectedBookingForPayment] = useState<ApiBooking | null>(null);
+  const [paymentInitiationData, setPaymentInitiationData] = useState<any>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'paynow' | 'mobile' | null>(null);
+  const [mobileNumber, setMobileNumber] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [paymentSuccessMessage, setPaymentSuccessMessage] = useState<string>('');
+  const [paymentErrorMessage, setPaymentErrorMessage] = useState<string>('');
+  const [redirectUrls, setRedirectUrls] = useState<{
+    redirectUrl?: string;
+    pollUrl?: string;
+  }>({});
 
   // Get customer ID from localStorage
   const getCustomerId = () => {
@@ -99,6 +111,24 @@ const Drivers: React.FC = () => {
       }
     }
     return "";
+  };
+
+  // Get customer email and phone from localStorage
+  const getCustomerContactInfo = () => {
+    const customer = localStorage.getItem('customer');
+    if (customer) {
+      try {
+        const customerData = JSON.parse(customer);
+        return {
+          email: customerData.email || "",
+          phone: customerData.phone || ""
+        };
+      } catch (e) {
+        console.error('Error parsing customer data:', e);
+        return { email: "", phone: "" };
+      }
+    }
+    return { email: "", phone: "" };
   };
 
   // Get unique locations from drivers data
@@ -287,13 +317,40 @@ const Drivers: React.FC = () => {
       const response = await BookingDriverService.createBooking(bookingData);
       
       let bookingId = null;
+      let bookingResponse = null;
+      
       if (response.data && response.data._id) {
         bookingId = response.data._id;
+        bookingResponse = response.data;
       } else if (response._id) {
         bookingId = response._id;
+        bookingResponse = response;
       }
       
       setCreatedBookingId(bookingId);
+      
+      // Prepare payment initiation data
+      const totalAmount = selectedDriver.hourly_rate * bookingFormData.pricing.hours_requested;
+      const contactInfo = getCustomerContactInfo();
+      
+      setPaymentInitiationData({
+        bookingId: bookingId,
+        driverId: selectedDriver._id,
+        driverEmail: selectedDriver.user_id.email || '',
+        driverPhone: selectedDriver.user_id.phone || '',
+        customerEmail: contactInfo.email,
+        customerPhone: contactInfo.phone,
+        amount: totalAmount,
+        hours: bookingFormData.pricing.hours_requested,
+        hourlyRate: selectedDriver.hourly_rate,
+        driverName: selectedDriver.user_id.full_name,
+        bookingDate: new Date().toISOString(),
+        driver_booking_id: bookingId // CRITICAL: Add driver_booking_id here
+      });
+
+      // Update email and mobile number from contact info
+      setEmail(contactInfo.email);
+      setMobileNumber(contactInfo.phone);
       
       const newBooking: Booking = {
         id: Date.now(),
@@ -310,27 +367,224 @@ const Drivers: React.FC = () => {
         }),
         driverId: selectedDriver._id,
         hours: bookingFormData.pricing.hours_requested,
-        totalAmount: selectedDriver.hourly_rate * bookingFormData.pricing.hours_requested,
+        totalAmount: totalAmount,
         status: 'pending'
       };
 
       setBookings([newBooking, ...bookings]);
       
+      // Close booking form and show payment initiation modal
       setShowBookingFormModal(false);
-      setShowSuccessMessage(true);
+      setShowPaymentInitiationModal(true);
       
+      // Reset messages
+      setPaymentSuccessMessage('');
+      setPaymentErrorMessage('');
+      
+      // Reset driver selection
       setSelectedDriver(null);
       setBookingDrawerData(null);
-      
-      setTimeout(() => {
-        setShowSuccessMessage(false);
-      }, 5000);
       
     } catch (error: any) {
       console.error('Error creating booking:', error);
       alert(`❌ Failed to create booking: ${error.message || 'Please try again.'}`);
     } finally {
       setIsCreatingBooking(false);
+    }
+  };
+
+  // Handle payment initiation with PayNow
+  const handlePayNowPayment = async () => {
+    if (!paymentInitiationData || !paymentInitiationData.driver_booking_id) {
+      setPaymentErrorMessage('Booking ID is missing. Please try booking again.');
+      return;
+    }
+
+    try {
+      setIsProcessingPayment(true);
+      setPaymentErrorMessage('');
+      setPaymentSuccessMessage('');
+
+      const paymentData = {
+        amount: paymentInitiationData.amount,
+        currency: "USD",
+        reference: `DRIVER-${paymentInitiationData.bookingId}`,
+        description: `Driver booking: ${paymentInitiationData.driverName} for ${paymentInitiationData.hours} hour(s)`,
+        customer_email: email || paymentInitiationData.customerEmail,
+        customer_mobile: mobileNumber || paymentInitiationData.customerPhone,
+        booking_id: paymentInitiationData.bookingId,
+        driver_id: paymentInitiationData.driverId,
+        driver_booking_id: paymentInitiationData.driver_booking_id,
+        metadata: {
+          driver_name: paymentInitiationData.driverName,
+          hours: paymentInitiationData.hours,
+          hourly_rate: paymentInitiationData.hourlyRate,
+          booking_date: paymentInitiationData.bookingDate
+        }
+      };
+
+      console.log('Sending payment data:', paymentData);
+
+      const response = await PaymentService.initiatePayment(paymentData);
+      
+      console.log('Payment response:', response);
+      
+      if (response && response.success) {
+        if (response.redirectUrl || response.redirect_url) {
+          // Store redirect URLs from response
+          const redirectUrl = response.redirectUrl || response.redirect_url;
+          const pollUrl = response.pollUrl || response.poll_url;
+          
+          setRedirectUrls({
+            redirectUrl,
+            pollUrl
+          });
+          
+          // Show success message
+          setPaymentSuccessMessage('Payment initiated successfully! Redirecting to PayNow...');
+          
+          // Wait a moment to show the success message
+          setTimeout(() => {
+            // Redirect to PayNow payment page in new tab using the URL from response
+            if (redirectUrl) {
+              window.open(redirectUrl, '_blank');
+            }
+            
+            // Poll for payment status if pollUrl is provided
+            if (pollUrl) {
+              pollPaymentStatus(paymentInitiationData.bookingId);
+            } else {
+              pollPaymentStatus(paymentInitiationData.bookingId);
+            }
+            
+            // Close modal after a delay
+            setTimeout(() => {
+              setShowPaymentInitiationModal(false);
+              setShowSuccessMessage(true);
+              setTimeout(() => {
+                setShowSuccessMessage(false);
+              }, 5000);
+            }, 2000);
+          }, 1500);
+        } else if (response.message) {
+          setPaymentSuccessMessage(response.message);
+        }
+      } else {
+        throw new Error(response?.message || 'Payment initiation failed');
+      }
+      
+    } catch (error: any) {
+      console.error('Error initiating PayNow payment:', error);
+      
+      // Handle specific error messages
+      if (error.response?.data?.message) {
+        setPaymentErrorMessage(error.response.data.message);
+      } else if (error.message) {
+        setPaymentErrorMessage(error.message);
+      } else {
+        setPaymentErrorMessage('Failed to initiate PayNow payment. Please try again.');
+      }
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  // Handle mobile payment initiation
+  const handleMobilePayment = async () => {
+    if (!paymentInitiationData || !paymentInitiationData.driver_booking_id) {
+      setPaymentErrorMessage('Booking ID is missing. Please try booking again.');
+      return;
+    }
+
+    const phoneNumber = mobileNumber || paymentInitiationData.customerPhone;
+    
+    if (!phoneNumber) {
+      setPaymentErrorMessage('Mobile number is required for mobile payments. Please enter your mobile number.');
+      return;
+    }
+
+    try {
+      setIsProcessingPayment(true);
+      setPaymentErrorMessage('');
+      setPaymentSuccessMessage('');
+
+      const paymentData = {
+        amount: paymentInitiationData.amount,
+        currency: "USD",
+        reference: `DRIVER-${paymentInitiationData.bookingId}`,
+        description: `Driver booking: ${paymentInitiationData.driverName} for ${paymentInitiationData.hours} hour(s)`,
+        mobile_number: phoneNumber,
+        phone: phoneNumber, // Send both fields to ensure compatibility
+        provider: "ecocash",
+        booking_id: paymentInitiationData.bookingId,
+        driver_id: paymentInitiationData.driverId,
+        driver_booking_id: paymentInitiationData.driver_booking_id,
+        metadata: {
+          driver_name: paymentInitiationData.driverName,
+          hours: paymentInitiationData.hours,
+          hourly_rate: paymentInitiationData.hourlyRate,
+          booking_date: paymentInitiationData.bookingDate
+        }
+      };
+
+      console.log('Sending mobile payment data:', paymentData);
+
+      const response = await PaymentService.initiateMobilePayment(paymentData);
+      
+      console.log('Mobile payment response:', response);
+      
+      if (response && response.success) {
+        setPaymentSuccessMessage(response.message || 'Mobile payment request sent successfully! Check your phone for payment prompt.');
+        
+        // Poll for payment status
+        pollPaymentStatus(paymentInitiationData.bookingId);
+        
+        // Close modal after a delay
+        setTimeout(() => {
+          setShowPaymentInitiationModal(false);
+          setShowSuccessMessage(true);
+          setTimeout(() => {
+            setShowSuccessMessage(false);
+          }, 5000);
+        }, 3000);
+      } else {
+        throw new Error(response?.message || 'Mobile payment initiation failed');
+      }
+      
+    } catch (error: any) {
+      console.error('Error initiating mobile payment:', error);
+      
+      if (error.response?.data?.message) {
+        setPaymentErrorMessage(error.response.data.message);
+      } else if (error.message) {
+        setPaymentErrorMessage(error.message);
+      } else {
+        setPaymentErrorMessage('Failed to initiate mobile payment. Please try again.');
+      }
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  // Poll payment status
+  const pollPaymentStatus = async (bookingId: string) => {
+    try {
+      const response = await PaymentService.pollPaymentStatus(bookingId);
+      
+      if (response && response.status === 'paid') {
+        // Update booking status
+        setApiBookings(prev => 
+          prev.map(booking => 
+            booking._id === bookingId 
+              ? { ...booking, status: 'paid', payment_status: 'completed' } 
+              : booking
+          )
+        );
+        
+        console.log('Payment poll successful:', response);
+      }
+    } catch (error) {
+      console.error('Error polling payment status:', error);
     }
   };
 
@@ -574,6 +828,161 @@ const Drivers: React.FC = () => {
             />
           )}
 
+          {/* Payment Initiation Modal */}
+          {showPaymentInitiationModal && paymentInitiationData && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-2xl font-bold text-gray-900">Complete Payment</h2>
+                    <button
+                      onClick={() => {
+                        setShowPaymentInitiationModal(false);
+                        setPaymentSuccessMessage('');
+                        setPaymentErrorMessage('');
+                      }}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <X className="w-5 h-5 text-gray-500" />
+                    </button>
+                  </div>
+                  
+                  {/* Success/Error Messages at the top */}
+                  {paymentSuccessMessage && (
+                    <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl">
+                      <div className="flex items-center gap-2 text-green-700">
+                        <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                        <span className="text-sm font-medium">{paymentSuccessMessage}</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {paymentErrorMessage && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl">
+                      <div className="flex items-center gap-2 text-red-700">
+                        <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                        <span className="text-sm font-medium">{paymentErrorMessage}</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 p-4 rounded-xl">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-gray-600">Driver:</span>
+                        <span className="font-semibold">{paymentInitiationData.driverName}</span>
+                      </div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-gray-600">Booking ID:</span>
+                        <span className="font-mono text-sm bg-blue-100 px-2 py-1 rounded">
+                          {paymentInitiationData.bookingId.substring(0, 8)}...
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-gray-600">Hours:</span>
+                        <span className="font-semibold">{paymentInitiationData.hours} hour(s)</span>
+                      </div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-gray-600">Rate:</span>
+                        <span className="font-semibold">${paymentInitiationData.hourlyRate}/hour</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-blue-100">
+                        <span className="text-lg font-bold text-gray-700">Total Amount:</span>
+                        <span className="text-2xl font-bold text-blue-700">${paymentInitiationData.amount}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Email for PayNow
+                        </label>
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="Enter your email"
+                          className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                          disabled={isProcessingPayment}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Mobile Number (required for mobile payments)
+                        </label>
+                        <input
+                          type="tel"
+                          value={mobileNumber}
+                          onChange={(e) => setMobileNumber(e.target.value)}
+                          placeholder="Enter your mobile number (e.g., 0771234567)"
+                          className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                          disabled={isProcessingPayment}
+                          required
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Mobile number is required for mobile payments
+                        </p>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 pt-4">
+                        <button
+                          onClick={() => {
+                            setPaymentMethod('paynow');
+                            handlePayNowPayment();
+                          }}
+                          disabled={isProcessingPayment}
+                          className={`p-4 rounded-xl font-semibold transition-all flex items-center justify-center ${
+                            isProcessingPayment && paymentMethod === 'paynow'
+                              ? 'bg-gray-300 text-gray-500 cursor-wait'
+                              : 'bg-gradient-to-r from-blue-800 to-cyan-600 text-white hover:opacity-90'
+                          }`}
+                        >
+                          {isProcessingPayment && paymentMethod === 'paynow' ? (
+                            <>
+                              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                              Processing...
+                            </>
+                          ) : (
+                            'Pay with PayNow'
+                          )}
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            setPaymentMethod('mobile');
+                            handleMobilePayment();
+                          }}
+                          disabled={isProcessingPayment || !mobileNumber}
+                          className={`p-4 rounded-xl font-semibold transition-all flex items-center justify-center ${
+                            isProcessingPayment && paymentMethod === 'mobile'
+                              ? 'bg-gray-300 text-gray-500 cursor-wait'
+                              : !mobileNumber
+                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                              : 'bg-gradient-to-r from-green-600 to-emerald-500 text-white hover:opacity-90'
+                          }`}
+                        >
+                          {isProcessingPayment && paymentMethod === 'mobile' ? (
+                            <>
+                              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                              Processing...
+                            </>
+                          ) : (
+                            'Mobile Payment'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <p className="text-sm text-gray-500 text-center pt-4">
+                      Your booking will be confirmed once payment is completed.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {showPaymentModal && selectedBookingForPayment && (
             <PaymentConfirmationModal
               isOpen={showPaymentModal}
@@ -610,13 +1019,11 @@ const Drivers: React.FC = () => {
           )}
         </div>
       </div>
-
-    
     </div>
   );
 };
 
-// Sub-components
+// Sub-components (same as before)
 const Navbar: React.FC<{
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;

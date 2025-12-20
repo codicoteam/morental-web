@@ -15,6 +15,8 @@ export interface Booking {
 export interface Driver {
   _id: string;
   user_id: {
+    email: string;
+    phone: string;
     _id: string;
     full_name: string;
   };
