@@ -13,6 +13,9 @@ import {
   sendMessageRest,
   markMessageRead,
   deleteMessage,
+  type IChatConversation,
+  type IChatMessage,
+  type IUser,
 
 } from "../../Services/chat_api";
 import { loadAuthFromStorage } from "../../features/auth/authService";
@@ -386,8 +389,8 @@ s.on("chat:message_created", ({ message }: { message: IChatMessage }) => {
       id: tempId,
       content: text,
       createdAt: new Date(),
-      senderId: myId,
-      readBy: [myId],
+      senderId: myId ?? "",
+      readBy: [myId ?? ""],
     };
 
     setMessagesByConvo((prev) => ({
