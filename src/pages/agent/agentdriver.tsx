@@ -3,7 +3,8 @@ import { useState, useEffect, useRef } from 'react';
 import { 
   MapPin, Search, Menu, User, X, Loader2, 
   Star, Globe, Shield, 
-  Briefcase, ChevronDown, Check, Users, Phone, Mail, Tag
+  Briefcase, ChevronDown, Check, Users, Phone, Mail, Tag,
+  CheckCircle, AlertCircle
   } from 'lucide-react';
 import Sidebar from '../../components/agentsidebar';
 import { useAppDispatch, useAppSelector } from '../../app/hooks';
@@ -11,6 +12,7 @@ import { fetchDrivers } from '../../features/driver/driverthunks';
 import { selectDrivers, selectLoading, selectError } from '../../features/driver/driverSelectors';
 import BookingDriverService from '../../Services/boking_service';
 import UserService from '../../Services/users_service';
+import PaymentService from '../../Services/payment_service'; // Add PaymentService import
 import {
   BookingFormModal,
   PaymentConfirmationModal,
@@ -71,6 +73,7 @@ const Agentdrivers: React.FC = () => {
   const [showBookingDrawer, setShowBookingDrawer] = useState(false);
   const [showBookingFormModal, setShowBookingFormModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showPaymentInitiationModal, setShowPaymentInitiationModal] = useState(false); // Add payment initiation modal
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [showPaymentError, setShowPaymentError] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
@@ -98,9 +101,10 @@ const Agentdrivers: React.FC = () => {
       hours_requested: 1
     }
   });
-  const [, setCreatedBookingId] = useState<string | null>(null);
+  const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
   const [isCreatingBooking, setIsCreatingBooking] = useState(false);
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false); // Add processing payment state
   const [paymentError, setPaymentError] = useState<string>('');
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   const [selectedBookingForPayment, setSelectedBookingForPayment] = useState<ApiBooking | null>(null);
@@ -114,6 +118,18 @@ const Agentdrivers: React.FC = () => {
   const [userSearch, setUserSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // New states for payment initiation
+  const [paymentInitiationData, setPaymentInitiationData] = useState<any>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'paynow' | 'mobile' | null>(null);
+  const [mobileNumber, setMobileNumber] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [paymentSuccessMessage, setPaymentSuccessMessage] = useState<string>('');
+  const [paymentErrorMessage, setPaymentErrorMessage] = useState<string>('');
+  const [redirectUrls, setRedirectUrls] = useState<{
+    redirectUrl?: string;
+    pollUrl?: string;
+  }>({});
+
   // Fetch users for the dropdown
   const fetchUsers = async () => {
     try {
@@ -121,37 +137,25 @@ const Agentdrivers: React.FC = () => {
       setUsersError('');
       const response = await UserService.getAllUsers();
       
-      console.log('Users API response:', response); // Debug log
+      console.log('Users API response:', response);
       
-      // Handle the API response structure - it returns an object with a 'success' and 'data' property
       let usersData: User[] = [];
       
       if (response && typeof response === 'object') {
-        // Check if response has the structure: {success: true, data: {users: [...]}}
         if (response.success && response.data && response.data.users && Array.isArray(response.data.users)) {
           usersData = response.data.users;
-          console.log('Found users in response.data.users:', usersData);
         }
-        // Check for direct users array in data property
         else if (response.data && Array.isArray(response.data)) {
           usersData = response.data;
-          console.log('Found users in response.data:', usersData);
         }
-        // Check for direct users array in response
         else if (Array.isArray(response)) {
           usersData = response;
-          console.log('Found users as direct array:', usersData);
         }
-        // Check for users property directly in response
         else if (response.users && Array.isArray(response.users)) {
           usersData = response.users;
-          console.log('Found users in response.users:', usersData);
         }
       }
       
-      console.log('Processed users data:', usersData); // Debug log
-      
-      // Filter to only show valid users with required fields
       const filteredUsers = usersData.filter(user => 
         user && 
         user._id && 
@@ -161,19 +165,10 @@ const Agentdrivers: React.FC = () => {
       setUsers(filteredUsers);
       setFilteredUsers(filteredUsers);
       
-      // Log users to verify they're loaded
-      console.log('Users loaded for dropdown:', filteredUsers);
-      
-      // If no users found, try alternative approach
       if (filteredUsers.length === 0) {
-        console.warn('No users found in API response. Trying to extract from response structure...');
-        console.log('Full response structure:', JSON.stringify(response, null, 2));
-        
-        // Try to find users in any nested structure
         const findUsersInObject = (obj: any): User[] => {
           if (!obj || typeof obj !== 'object') return [];
           
-          // If obj is an array, check if it contains user objects
           if (Array.isArray(obj)) {
             const potentialUsers = obj.filter(item => 
               item && 
@@ -184,7 +179,6 @@ const Agentdrivers: React.FC = () => {
             if (potentialUsers.length > 0) return potentialUsers;
           }
           
-          // Check all object properties
           for (const key in obj) {
             if (Array.isArray(obj[key])) {
               const potentialUsers = obj[key].filter((item: any) => 
@@ -202,7 +196,6 @@ const Agentdrivers: React.FC = () => {
         
         const foundUsers = findUsersInObject(response);
         if (foundUsers.length > 0) {
-          console.log('Found users in nested structure:', foundUsers);
           setUsers(foundUsers);
           setFilteredUsers(foundUsers);
         }
@@ -440,7 +433,7 @@ const Agentdrivers: React.FC = () => {
       
       const bookingData = {
         ...bookingFormData,
-        customer_id: bookingFormData.customer_id, // Use selected customer ID
+        customer_id: bookingFormData.customer_id,
         driver_profile_id: selectedDriver._id,
         pickup_location: {
           ...bookingFormData.pickup_location,
@@ -461,17 +454,43 @@ const Agentdrivers: React.FC = () => {
       const response = await BookingDriverService.createBooking(bookingData);
       
       let bookingId = null;
+      let bookingResponse = null;
+      
       if (response.data && response.data._id) {
         bookingId = response.data._id;
+        bookingResponse = response.data;
       } else if (response._id) {
         bookingId = response._id;
+        bookingResponse = response;
       }
       
       setCreatedBookingId(bookingId);
       
-      // Get selected customer name for display
+      // Get selected customer info
       const selectedCustomer = users.find(user => user._id === bookingFormData.customer_id);
-      const customerName = selectedCustomer ? selectedCustomer.full_name : 'Selected Customer';
+      
+      // Prepare payment initiation data - THIS IS THE KEY PART
+      const totalAmount = selectedDriver.hourly_rate * bookingFormData.pricing.hours_requested;
+      
+      setPaymentInitiationData({
+        bookingId: bookingId,
+        driverId: selectedDriver._id,
+        driverEmail: selectedDriver.user_id.email || '',
+        driverPhone: selectedDriver.user_id.phone || '',
+        customerEmail: selectedCustomer?.email || '',
+        customerPhone: selectedCustomer?.phone || '',
+        customerName: selectedCustomer?.full_name || 'Customer',
+        amount: totalAmount,
+        hours: bookingFormData.pricing.hours_requested,
+        hourlyRate: selectedDriver.hourly_rate,
+        driverName: selectedDriver.user_id.full_name,
+        bookingDate: new Date().toISOString(),
+        driver_booking_id: bookingId // CRITICAL: Add driver_booking_id here
+      });
+
+      // Update email and mobile number from customer info
+      setEmail(selectedCustomer?.email || '');
+      setMobileNumber(selectedCustomer?.phone || '');
       
       const newBooking: Booking = {
         id: Date.now(),
@@ -488,33 +507,219 @@ const Agentdrivers: React.FC = () => {
         }),
         driverId: selectedDriver._id,
         hours: bookingFormData.pricing.hours_requested,
-        totalAmount: selectedDriver.hourly_rate * bookingFormData.pricing.hours_requested,
+        totalAmount: totalAmount,
         status: 'pending'
       };
 
       setBookings([newBooking, ...bookings]);
       
+      // Close booking form and show payment initiation modal
       setShowBookingFormModal(false);
-      setShowSuccessMessage(true);
+      setShowPaymentInitiationModal(true); // Show payment initiation modal instead of success
       
-      // Reset form data
-      setBookingFormData(prev => ({
-        ...prev,
-        customer_id: ""
-      }));
+      // Reset messages
+      setPaymentSuccessMessage('');
+      setPaymentErrorMessage('');
       
+      // Reset driver selection
       setSelectedDriver(null);
       setBookingDrawerData(null);
-      
-      setTimeout(() => {
-        setShowSuccessMessage(false);
-      }, 5000);
       
     } catch (error: any) {
       console.error('Error creating booking:', error);
       alert(`❌ Failed to create booking: ${error.message || 'Please try again.'}`);
     } finally {
       setIsCreatingBooking(false);
+    }
+  };
+
+  // NEW: Handle payment initiation with PayNow
+  const handlePayNowPayment = async () => {
+    if (!paymentInitiationData || !paymentInitiationData.driver_booking_id) {
+      setPaymentErrorMessage('Booking ID is missing. Please try booking again.');
+      return;
+    }
+
+    try {
+      setIsProcessingPayment(true);
+      setPaymentErrorMessage('');
+      setPaymentSuccessMessage('');
+
+      const paymentData = {
+        amount: paymentInitiationData.amount,
+        currency: "USD",
+        reference: `DRIVER-${paymentInitiationData.bookingId}`,
+        description: `Driver booking: ${paymentInitiationData.driverName} for ${paymentInitiationData.hours} hour(s)`,
+        customer_email: email || paymentInitiationData.customerEmail,
+        customer_mobile: mobileNumber || paymentInitiationData.customerPhone,
+        booking_id: paymentInitiationData.bookingId,
+        driver_id: paymentInitiationData.driverId,
+        driver_booking_id: paymentInitiationData.driver_booking_id,
+        metadata: {
+          driver_name: paymentInitiationData.driverName,
+          customer_name: paymentInitiationData.customerName,
+          hours: paymentInitiationData.hours,
+          hourly_rate: paymentInitiationData.hourlyRate,
+          booking_date: paymentInitiationData.bookingDate
+        }
+      };
+
+      console.log('Sending payment data:', paymentData);
+
+      const response = await PaymentService.initiatePayment(paymentData);
+      
+      console.log('Payment response:', response);
+      
+      if (response && response.success) {
+        if (response.redirectUrl || response.redirect_url) {
+          const redirectUrl = response.redirectUrl || response.redirect_url;
+          const pollUrl = response.pollUrl || response.poll_url;
+          
+          setRedirectUrls({
+            redirectUrl,
+            pollUrl
+          });
+          
+          setPaymentSuccessMessage('Payment initiated successfully! Redirecting to PayNow...');
+          
+          setTimeout(() => {
+            if (redirectUrl) {
+              window.open(redirectUrl, '_blank');
+            }
+            
+            if (pollUrl) {
+              pollPaymentStatus(paymentInitiationData.bookingId);
+            } else {
+              pollPaymentStatus(paymentInitiationData.bookingId);
+            }
+            
+            setTimeout(() => {
+              setShowPaymentInitiationModal(false);
+              setShowSuccessMessage(true);
+              setTimeout(() => {
+                setShowSuccessMessage(false);
+              }, 5000);
+            }, 2000);
+          }, 1500);
+        } else if (response.message) {
+          setPaymentSuccessMessage(response.message);
+        }
+      } else {
+        throw new Error(response?.message || 'Payment initiation failed');
+      }
+      
+    } catch (error: any) {
+      console.error('Error initiating PayNow payment:', error);
+      
+      if (error.response?.data?.message) {
+        setPaymentErrorMessage(error.response.data.message);
+      } else if (error.message) {
+        setPaymentErrorMessage(error.message);
+      } else {
+        setPaymentErrorMessage('Failed to initiate PayNow payment. Please try again.');
+      }
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  // NEW: Handle mobile payment initiation
+  const handleMobilePayment = async () => {
+    if (!paymentInitiationData || !paymentInitiationData.driver_booking_id) {
+      setPaymentErrorMessage('Booking ID is missing. Please try booking again.');
+      return;
+    }
+
+    const phoneNumber = mobileNumber || paymentInitiationData.customerPhone;
+    
+    if (!phoneNumber) {
+      setPaymentErrorMessage('Mobile number is required for mobile payments. Please enter the customer mobile number.');
+      return;
+    }
+
+    try {
+      setIsProcessingPayment(true);
+      setPaymentErrorMessage('');
+      setPaymentSuccessMessage('');
+
+      const paymentData = {
+        amount: paymentInitiationData.amount,
+        currency: "USD",
+        reference: `DRIVER-${paymentInitiationData.bookingId}`,
+        description: `Driver booking: ${paymentInitiationData.driverName} for ${paymentInitiationData.hours} hour(s)`,
+        mobile_number: phoneNumber,
+        phone: phoneNumber,
+        provider: "ecocash",
+        booking_id: paymentInitiationData.bookingId,
+        driver_id: paymentInitiationData.driverId,
+        driver_booking_id: paymentInitiationData.driver_booking_id,
+        metadata: {
+          driver_name: paymentInitiationData.driverName,
+          customer_name: paymentInitiationData.customerName,
+          hours: paymentInitiationData.hours,
+          hourly_rate: paymentInitiationData.hourlyRate,
+          booking_date: paymentInitiationData.bookingDate
+        }
+      };
+
+      console.log('Sending mobile payment data:', paymentData);
+
+      const response = await PaymentService.initiateMobilePayment(paymentData);
+      
+      console.log('Mobile payment response:', response);
+      
+      if (response && response.success) {
+        setPaymentSuccessMessage(response.message || 'Mobile payment request sent successfully! Customer will receive payment prompt.');
+        
+        // Poll for payment status
+        pollPaymentStatus(paymentInitiationData.bookingId);
+        
+        // Close modal after a delay
+        setTimeout(() => {
+          setShowPaymentInitiationModal(false);
+          setShowSuccessMessage(true);
+          setTimeout(() => {
+            setShowSuccessMessage(false);
+          }, 5000);
+        }, 3000);
+      } else {
+        throw new Error(response?.message || 'Mobile payment initiation failed');
+      }
+      
+    } catch (error: any) {
+      console.error('Error initiating mobile payment:', error);
+      
+      if (error.response?.data?.message) {
+        setPaymentErrorMessage(error.response.data.message);
+      } else if (error.message) {
+        setPaymentErrorMessage(error.message);
+      } else {
+        setPaymentErrorMessage('Failed to initiate mobile payment. Please try again.');
+      }
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  // NEW: Poll payment status
+  const pollPaymentStatus = async (bookingId: string) => {
+    try {
+      const response = await PaymentService.pollPaymentStatus(bookingId);
+      
+      if (response && response.status === 'paid') {
+        // Update booking status
+        setApiBookings(prev => 
+          prev.map(booking => 
+            booking._id === bookingId 
+              ? { ...booking, status: 'paid', payment_status: 'completed' } 
+              : booking
+          )
+        );
+        
+        console.log('Payment poll successful:', response);
+      }
+    } catch (error) {
+      console.error('Error polling payment status:', error);
     }
   };
 
@@ -698,12 +903,10 @@ const Agentdrivers: React.FC = () => {
       console.log('Response type:', typeof response);
       console.log('Response keys:', Object.keys(response || {}));
       
-      // Try to find users in the response
       const findUsersDeep = (obj: any, path = ''): any => {
         if (!obj || typeof obj !== 'object') return null;
         
         if (Array.isArray(obj)) {
-          // Check if array contains user objects
           const hasUserFields = obj.length > 0 && obj[0] && obj[0]._id && obj[0].full_name;
           if (hasUserFields) {
             console.log(`Found users array at path: ${path}`, obj);
@@ -738,7 +941,6 @@ const Agentdrivers: React.FC = () => {
           Select Customer *
         </label>
         
-        {/* Custom Dropdown Trigger */}
         <div 
           className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-300 bg-blue-50/50 text-gray-700 cursor-pointer hover:bg-blue-50 transition-colors flex items-center justify-between"
           onClick={() => setShowUserDropdown(!showUserDropdown)}
@@ -771,10 +973,8 @@ const Agentdrivers: React.FC = () => {
           <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showUserDropdown ? 'transform rotate-180' : ''}`} />
         </div>
 
-        {/* Enhanced Dropdown Menu */}
         {showUserDropdown && (
           <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-2xl border border-gray-200 max-h-96 overflow-hidden flex flex-col">
-            {/* Search Header */}
             <div className="p-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-cyan-50">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -801,7 +1001,6 @@ const Agentdrivers: React.FC = () => {
               </div>
             </div>
 
-            {/* Users List */}
             <div className="overflow-y-auto flex-1">
               {isLoadingUsers ? (
                 <div className="p-6 flex flex-col items-center justify-center">
@@ -890,7 +1089,6 @@ const Agentdrivers: React.FC = () => {
               )}
             </div>
 
-            {/* Footer */}
             <div className="p-3 border-t border-gray-200 bg-gray-50">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-gray-500">
@@ -942,7 +1140,6 @@ const Agentdrivers: React.FC = () => {
           </div>
 
           <div className="p-6">
-            {/* Enhanced Customer Selection Dropdown */}
             <div className="mb-6">
               {EnhancedCustomerDropdown()}
               
@@ -950,7 +1147,6 @@ const Agentdrivers: React.FC = () => {
                 <p className="text-red-500 text-sm mt-1">{usersError}</p>
               )}
               
-              {/* Debug button for troubleshooting */}
               <div className="mt-3 flex items-center gap-2">
                 <button
                   onClick={debugUsersAPI}
@@ -967,7 +1163,6 @@ const Agentdrivers: React.FC = () => {
                 </span>
               </div>
               
-              {/* Show selected customer info */}
               {selectedCustomer && (
                 <div className="mt-3 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-200">
                   <div className="flex items-center gap-3">
@@ -1018,7 +1213,6 @@ const Agentdrivers: React.FC = () => {
               )}
             </div>
 
-            {/* Rest of the form fields with light blue theme */}
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -1180,9 +1374,171 @@ const Agentdrivers: React.FC = () => {
                   Creating Booking...
                 </>
               ) : (
-                'Create Booking'
+                'Create Booking & Pay'
               )}
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // NEW: Payment Initiation Modal Component
+  const PaymentInitiationModal = () => {
+    if (!showPaymentInitiationModal || !paymentInitiationData) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Complete Payment</h2>
+              <button
+                onClick={() => {
+                  setShowPaymentInitiationModal(false);
+                  setPaymentSuccessMessage('');
+                  setPaymentErrorMessage('');
+                }}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            
+            {paymentSuccessMessage && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl">
+                <div className="flex items-center gap-2 text-green-700">
+                  <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm font-medium">{paymentSuccessMessage}</span>
+                </div>
+              </div>
+            )}
+            
+            {paymentErrorMessage && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl">
+                <div className="flex items-center gap-2 text-red-700">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm font-medium">{paymentErrorMessage}</span>
+                </div>
+              </div>
+            )}
+            
+            <div className="space-y-4">
+              <div className="bg-blue-50 p-4 rounded-xl">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-600">Customer:</span>
+                  <span className="font-semibold">{paymentInitiationData.customerName}</span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-600">Driver:</span>
+                  <span className="font-semibold">{paymentInitiationData.driverName}</span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-600">Booking ID:</span>
+                  <span className="font-mono text-sm bg-blue-100 px-2 py-1 rounded">
+                    {paymentInitiationData.bookingId.substring(0, 8)}...
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-600">Hours:</span>
+                  <span className="font-semibold">{paymentInitiationData.hours} hour(s)</span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-600">Rate:</span>
+                  <span className="font-semibold">${paymentInitiationData.hourlyRate}/hour</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-blue-100">
+                  <span className="text-lg font-bold text-gray-700">Total Amount:</span>
+                  <span className="text-2xl font-bold text-blue-700">${paymentInitiationData.amount}</span>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Customer Email (for PayNow receipt)
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter customer email"
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                    disabled={isProcessingPayment}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Customer Mobile Number (required for mobile payments)
+                  </label>
+                  <input
+                    type="tel"
+                    value={mobileNumber}
+                    onChange={(e) => setMobileNumber(e.target.value)}
+                    placeholder="Enter customer mobile number (e.g., 0771234567)"
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                    disabled={isProcessingPayment}
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Mobile number is required for mobile payments
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3 pt-4">
+                  <button
+                    onClick={() => {
+                      setPaymentMethod('paynow');
+                      handlePayNowPayment();
+                    }}
+                    disabled={isProcessingPayment}
+                    className={`p-4 rounded-xl font-semibold transition-all flex items-center justify-center ${
+                      isProcessingPayment && paymentMethod === 'paynow'
+                        ? 'bg-gray-300 text-gray-500 cursor-wait'
+                        : 'bg-gradient-to-r from-blue-800 to-cyan-600 text-white hover:opacity-90'
+                    }`}
+                  >
+                    {isProcessingPayment && paymentMethod === 'paynow' ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                        Processing...
+                      </>
+                    ) : (
+                      'Pay with PayNow'
+                    )}
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setPaymentMethod('mobile');
+                      handleMobilePayment();
+                    }}
+                    disabled={isProcessingPayment || !mobileNumber}
+                    className={`p-4 rounded-xl font-semibold transition-all flex items-center justify-center ${
+                      isProcessingPayment && paymentMethod === 'mobile'
+                        ? 'bg-gray-300 text-gray-500 cursor-wait'
+                        : !mobileNumber
+                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-green-600 to-emerald-500 text-white hover:opacity-90'
+                    }`}
+                  >
+                    {isProcessingPayment && paymentMethod === 'mobile' ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                        Processing...
+                      </>
+                    ) : (
+                      'Mobile Payment'
+                    )}
+                  </button>
+                </div>
+              </div>
+              
+              <p className="text-sm text-gray-500 text-center pt-4">
+                The booking will be confirmed once payment is completed.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -1293,6 +1649,9 @@ const Agentdrivers: React.FC = () => {
           {/* Custom Booking Form Modal with Enhanced Customer Dropdown */}
           {BookingFormWithCustomerDropdown()}
 
+          {/* NEW: Payment Initiation Modal */}
+          {PaymentInitiationModal()}
+
           {showPaymentModal && selectedBookingForPayment && (
             <PaymentConfirmationModal
               isOpen={showPaymentModal}
@@ -1333,7 +1692,7 @@ const Agentdrivers: React.FC = () => {
   );
 };
 
-// Sub-components
+// Sub-components (keep the same as before)
 const Navbar: React.FC<{
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;

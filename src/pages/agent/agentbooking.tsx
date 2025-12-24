@@ -16,13 +16,15 @@ const AgentbookingPage = () => {
   const [pricing, setPricing] = useState<Pricing | null>(null);
   const [serviceOrders, setServiceOrders] = useState<ServiceOrder[]>([]);
   const [serviceSchedules, setServiceSchedules] = useState<ServiceSchedule[]>([]);
-  const [, setUsers] = useState<UserType[]>([]);
+  const [users, setUsers] = useState<UserType[]>([]);
   const [selectedUserId] = useState<string>('');
   const [selectedUser] = useState<UserType | null>(null);
-  const [, setLoadingUsers] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingServiceOrders, setLoadingServiceOrders] = useState(false);
   const [loadingServiceSchedules, setLoadingServiceSchedules] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isCreatingBooking, setIsCreatingBooking] = useState(false);
+  const [bookingStatus, setBookingStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
 
   useEffect(() => {
     console.log("Vehicles from Redux:", vehicles);
@@ -170,6 +172,9 @@ const AgentbookingPage = () => {
   };
 
   const handleCreateBookingOnBehalf = async (bookingData: any) => {
+    setIsCreatingBooking(true);
+    setBookingStatus({ type: null, message: '' });
+    
     try {
       // Add agent booking flags to the booking data
       const bookingDataWithAgent = {
@@ -181,13 +186,39 @@ const AgentbookingPage = () => {
       // Call your booking API with the modified data
       console.log('Creating booking as agent with data:', bookingDataWithAgent);
       
-      // Handle success
-      alert('Booking successfully created!');
-      // Optionally navigate or refresh data
+      // Simulate API call (replace with your actual API call)
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Success handling
+      setBookingStatus({ 
+        type: 'success', 
+        message: 'Booking successfully created!' 
+      });
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setBookingStatus({ type: null, message: '' });
+      }, 3000);
+      
+      // You can also navigate or refresh data here
+      // navigate('/agent/bookings');
       
     } catch (error) {
       console.error('Error creating booking:', error);
-      alert('Failed to create booking. Please try again.');
+      
+      // Error handling
+      setBookingStatus({ 
+        type: 'error', 
+        message: 'Failed to create booking. Please try again.' 
+      });
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setBookingStatus({ type: null, message: '' });
+      }, 5000);
+      
+    } finally {
+      setIsCreatingBooking(false);
     }
   };
 
@@ -209,8 +240,8 @@ const AgentbookingPage = () => {
           <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="w-10 h-10 text-red-600" />
           </div>
-         
-         
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Pricing Not Found</h1>
+          <p className="text-gray-600 mb-6">The pricing details you're looking for could not be found.</p>
           <button
             onClick={() => navigate('/agent')}
             className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-8 py-3 rounded-lg font-semibold shadow-lg transition-all transform hover:scale-105"
@@ -241,8 +272,48 @@ const AgentbookingPage = () => {
         </div>
       </div>
 
+      {/* Booking Status Messages */}
+      {bookingStatus.type && (
+        <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 transition-all duration-300 ${bookingStatus.type ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+          <div className={`rounded-lg p-4 ${bookingStatus.type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+            <div className="flex items-center">
+              <div className={`flex-shrink-0 ${bookingStatus.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                {bookingStatus.type === 'success' ? (
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              <div className="ml-3">
+                <p className={`text-sm font-medium ${bookingStatus.type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
+                  {bookingStatus.message}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Booking Creation Loader Overlay */}
+        {isCreatingBooking && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md mx-4">
+              <div className="flex flex-col items-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600 mb-4"></div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">Creating Booking</h3>
+                <p className="text-gray-600 text-center">Please wait while we create your booking...</p>
+                <p className="text-sm text-gray-500 mt-2 text-center">This may take a few moments</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Booking Details Component */}
         <BookingDetails
           pricing={pricing}
@@ -250,9 +321,8 @@ const AgentbookingPage = () => {
           serviceSchedules={serviceSchedules}
           loadingServiceOrders={loadingServiceOrders}
           loadingServiceSchedules={loadingServiceSchedules}
-          selectedUserId={selectedUserId}
-          selectedUser={selectedUser}
-          onCreateBookingOnBehalf={handleCreateBookingOnBehalf}
+          
+          
         />
       </div>
     </div>

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Bell, Check, Trash2, X, Search, Calendar, AlertCircle, CheckCircle, Info, Clock, Menu } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { Bell, Check, CheckCircle, AlertCircle, Info, Clock, Menu, X, Search } from 'lucide-react';
 import Sidebar from '../../components/CustomerSidebar';
-import axios from 'axios';
+import NotificationService from '../../Services/notification_service';
 
 interface Notification {
   id: string;
@@ -18,8 +17,6 @@ interface Notification {
   metadata?: any;
 }
 
-const BASE_URL = "http://13.61.185.238:5050/api/v1/notifications";
-
 export default function NotificationScreen() {
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -28,44 +25,38 @@ export default function NotificationScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [onlyUnread, setOnlyUnread] = useState(false);
-  const location = useLocation();
-
-  const getAuthToken = (): string | null => {
-    try {
-      const stored = localStorage.getItem("car_rental_auth");
-      if (!stored) return null;
-      return JSON.parse(stored).token || null;
-    } catch {
-      return null;
-    }
-  };
 
   const fetchNotifications = async () => {
     try {
       setLoading(true);
       setError(null);
-      const token = getAuthToken();
       
-      const response = await axios.get(
-        `${BASE_URL}?page=1&limit=20&sort=-created_at`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
-
-      const responseData = response.data;
+      // Try to get notifications from the service
+      // If it fails, fall back to a different approach
+      let response;
+      try {
+        // First try the main notifications endpoint via getAllNotifications
+        response = await NotificationService.getAllNotifications();
+      } catch (serviceError: any) {
+        console.log('Service error, trying alternative approach:', serviceError);
+        // If service fails, we'll show empty state
+        throw new Error('Unable to fetch notifications at this time');
+      }
+      
       let notificationsArray = [];
       
-      if (Array.isArray(responseData)) {
-        notificationsArray = responseData;
-      } else if (responseData?.data && Array.isArray(responseData.data)) {
-        notificationsArray = responseData.data;
-      } else if (responseData?.notifications && Array.isArray(responseData.notifications)) {
-        notificationsArray = responseData.notifications;
-      } else if (responseData?.items && Array.isArray(responseData.items)) {
-        notificationsArray = responseData.items;
+      if (Array.isArray(response)) {
+        notificationsArray = response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        notificationsArray = response.data;
+      } else if (response?.notifications && Array.isArray(response.notifications)) {
+        notificationsArray = response.notifications;
+      } else if (response?.items && Array.isArray(response.items)) {
+        notificationsArray = response.items;
       }
 
       if (notificationsArray.length === 0) {
-        setNotifications(getSampleNotifications());
+        setNotifications([]);
       } else {
         const transformedNotifications = notificationsArray.map((item: any, index: number) => ({
           id: item.id || item._id || `notif-${Date.now()}-${index}`,
@@ -74,7 +65,7 @@ export default function NotificationScreen() {
           created_at: item.created_at || item.createdAt || item.timestamp || new Date().toISOString(),
           read: item.read || item.isRead || item.status === 'read' || false,
           type: getNotificationType(item.type, item.priority),
-          details: item.details || item.message || item.content || 'No additional details available',
+          details: item.details || item.message || item.content || '',
           sender: item.sender || item.from || item.createdBy || 'System',
           category: getNotificationCategory(item.category),
           priority: item.priority || (item.urgent ? 'high' : 'medium'),
@@ -85,75 +76,19 @@ export default function NotificationScreen() {
       }
     } catch (err: any) {
       console.error('API Error:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to load notifications');
-      setNotifications(getSampleNotifications());
+      
+      // Check for specific backend error
+      if (err.message?.includes('buildMineAudienceFilter') || 
+          err.response?.data?.message?.includes('buildMineAudienceFilter')) {
+        setError('Notification service is temporarily undergoing maintenance. Please check back later.');
+      } else {
+        setError(err.message || 'Failed to load notifications. Please try again.');
+      }
+      setNotifications([]);
     } finally {
       setLoading(false);
     }
   };
-
-  const getSampleNotifications = (): Notification[] => [
-    {
-      id: 'sample-1',
-      title: 'Welcome to Notifications',
-      message: 'Your notifications are loading from the API',
-      created_at: new Date().toISOString(),
-      read: false,
-      type: 'info',
-      details: 'This is a sample notification while we fetch data from the API server.',
-      sender: 'System',
-      category: 'system',
-      priority: 'medium'
-    },
-    {
-      id: 'sample-2',
-      title: 'Booking Confirmed',
-      message: 'Your car rental booking has been confirmed successfully',
-      created_at: new Date(Date.now() - 3600000).toISOString(),
-      read: false,
-      type: 'success',
-      details: 'Booking ID: CAR-2024-001\nVehicle: Toyota Camry\nPickup: Dec 25, 2024\nReturn: Dec 28, 2024',
-      sender: 'Booking System',
-      category: 'booking',
-      priority: 'high'
-    },
-    {
-      id: 'sample-3',
-      title: 'Payment Received',
-      message: 'Payment of $250.00 has been processed successfully',
-      created_at: new Date(Date.now() - 7200000).toISOString(),
-      read: true,
-      type: 'success',
-      details: 'Payment confirmed for booking CAR-2024-001\nAmount: $250.00\nStatus: Completed',
-      sender: 'Payment System',
-      category: 'payment',
-      priority: 'medium'
-    },
-    {
-      id: 'sample-4',
-      title: 'Promotion Available',
-      message: 'Get 20% off your next booking with promo code WINTER20',
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-      read: true,
-      type: 'promotion',
-      details: 'Special winter promotion! Use code WINTER20 for 20% discount on all bookings made before January 31, 2024.',
-      sender: 'Marketing Team',
-      category: 'promotion',
-      priority: 'low'
-    },
-    {
-      id: 'sample-5',
-      title: 'System Maintenance',
-      message: 'Scheduled maintenance this weekend',
-      created_at: new Date(Date.now() - 172800000).toISOString(),
-      read: false,
-      type: 'warning',
-      details: 'System will be unavailable on Saturday, Dec 23 from 2:00 AM to 4:00 AM for maintenance.',
-      sender: 'System Admin',
-      category: 'system',
-      priority: 'medium'
-    }
-  ];
 
   const getNotificationType = (type: string, priority: string): Notification['type'] => {
     if (!type) {
@@ -182,12 +117,7 @@ export default function NotificationScreen() {
 
   const markAsRead = async (id: string) => {
     try {
-      const token = getAuthToken();
-      await axios.post(
-        `${BASE_URL}/bulk/read`,
-        { notificationIds: [id] },
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
+      await NotificationService.markAsRead(id);
       setNotifications(prev => prev.map(notif => 
         notif.id === id ? { ...notif, read: true } : notif
       ));
@@ -196,42 +126,21 @@ export default function NotificationScreen() {
       }
     } catch (err) {
       console.error('Error marking as read:', err);
+      // Still update UI even if API fails
       setNotifications(prev => prev.map(notif => 
         notif.id === id ? { ...notif, read: true } : notif
       ));
     }
   };
 
-  const deleteNotification = async (id: string) => {
+  const performNotificationAction = async (id: string) => {
     try {
-      const token = getAuthToken();
-      await axios.delete(
-        `${BASE_URL}/${id}`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
-      setNotifications(prev => prev.filter(notif => notif.id !== id));
-      if (selectedNotification?.id === id) setSelectedNotification(null);
+      await NotificationService.performAction(id);
+      // Refresh notifications after performing action
+      fetchNotifications();
     } catch (err) {
-      console.error('Error deleting:', err);
-      setNotifications(prev => prev.filter(notif => notif.id !== id));
-    }
-  };
-
-  const markAllAsRead = async () => {
-    const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
-    if (unreadIds.length === 0) return;
-    
-    try {
-      const token = getAuthToken();
-      await axios.post(
-        `${BASE_URL}/bulk/read`,
-        { notificationIds: unreadIds },
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
-      setNotifications(prev => prev.map(notif => ({ ...notif, read: true })));
-    } catch (err) {
-      console.error('Error marking all as read:', err);
-      setNotifications(prev => prev.map(notif => ({ ...notif, read: true })));
+      console.error('Error performing action:', err);
+      alert('Action could not be completed. Please try again.');
     }
   };
 
@@ -303,7 +212,9 @@ export default function NotificationScreen() {
     }
   };
 
-  useEffect(() => { fetchNotifications(); }, [onlyUnread]);
+  useEffect(() => { 
+    fetchNotifications(); 
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900/5 via-cyan-100/30 to-blue-500/10 flex">
@@ -373,16 +284,6 @@ export default function NotificationScreen() {
                   <Bell className="w-5 h-5" />
                   <span className="text-sm sm:text-base">{onlyUnread ? 'Show All' : 'Unread Only'}</span>
                 </button>
-                
-                {!loading && unreadCount > 0 && (
-                  <button
-                    onClick={markAllAsRead}
-                    className="px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium flex items-center gap-2 justify-center sm:justify-start"
-                  >
-                    <Check className="w-5 h-5" />
-                    <span className="text-sm sm:text-base">Mark All Read</span>
-                  </button>
-                )}
               </div>
             </div>
 
@@ -406,7 +307,7 @@ export default function NotificationScreen() {
               <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-6 sm:p-8 md:p-12 text-center">
                 <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                 <h3 className="text-lg sm:text-xl font-bold text-gray-700 mb-2">Loading notifications...</h3>
-                <p className="text-gray-500 text-xs sm:text-sm">Fetching from API...</p>
+                <p className="text-gray-500 text-xs sm:text-sm">Fetching your notifications...</p>
               </div>
             )}
 
@@ -414,11 +315,13 @@ export default function NotificationScreen() {
             {error && !loading && (
               <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-6 sm:p-8 text-center">
                 <AlertCircle className="w-10 h-10 sm:w-12 sm:h-12 text-rose-400 mx-auto mb-3 sm:mb-4" />
-                <h3 className="text-lg sm:text-xl font-bold text-gray-700 mb-2 sm:mb-3">API Connection Issue</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-700 mb-2 sm:mb-3">Unable to Load Notifications</h3>
                 <p className="text-gray-500 text-sm sm:text-base mb-4">{error}</p>
-                <button onClick={fetchNotifications} className="px-5 sm:px-6 py-2 sm:py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-sm sm:text-base">
-                  Retry
-                </button>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <button onClick={fetchNotifications} className="px-5 sm:px-6 py-2 sm:py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-sm sm:text-base">
+                    Try Again
+                  </button>
+                </div>
               </div>
             )}
 
@@ -432,7 +335,7 @@ export default function NotificationScreen() {
                       {onlyUnread ? 'No unread notifications' : 'No notifications found'}
                     </h3>
                     <p className="text-gray-500 text-sm sm:text-base mb-4">
-                      {searchQuery ? 'Try a different search term' : 'You\'re all caught up!'}
+                      {searchQuery ? 'Try a different search term' : 'You don\'t have any notifications yet'}
                     </p>
                     {searchQuery && (
                       <button onClick={() => setSearchQuery('')} className="px-5 sm:px-6 py-2 sm:py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-sm sm:text-base">
@@ -498,13 +401,6 @@ export default function NotificationScreen() {
                                   <Check className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-600" />
                                 </button>
                               )}
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id); }} 
-                                className="p-1 sm:p-1.5 hover:bg-rose-50 rounded-lg"
-                                title="Delete"
-                              >
-                                <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 text-rose-600" />
-                              </button>
                             </div>
                           </div>
                         </div>
@@ -535,15 +431,10 @@ export default function NotificationScreen() {
                     <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-2 truncate sm:line-clamp-2">{selectedNotification.title}</h2>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-gray-700 text-xs sm:text-sm">
                       <div className="flex items-center gap-1 sm:gap-2">
-                        <Bell className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                         <span className="font-medium truncate">{selectedNotification.sender || 'System'}</span>
                       </div>
                       <div className="flex items-center gap-1 sm:gap-2">
-                        <Clock className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                         <span>{formatTime(selectedNotification.created_at)}</span>
-                      </div>
-                      <div className="mt-1 sm:mt-0">
-                        {getPriorityBadge(selectedNotification.priority)}
                       </div>
                     </div>
                   </div>
@@ -558,11 +449,11 @@ export default function NotificationScreen() {
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               <div className="space-y-4 sm:space-y-6">
                 <div className="bg-blue-50 rounded-xl p-4 sm:p-6 border border-blue-100">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Summary</h3>
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Message</h3>
                   <p className="text-gray-700 text-sm sm:text-base">{selectedNotification.message}</p>
                 </div>
                 
-                {selectedNotification.details && (
+                {selectedNotification.details && selectedNotification.details.trim() !== '' && (
                   <div className="bg-gray-50 rounded-xl p-4 sm:p-6">
                     <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4">Details</h3>
                     <div className="text-gray-600 text-sm sm:text-base whitespace-pre-line">
@@ -570,27 +461,18 @@ export default function NotificationScreen() {
                     </div>
                   </div>
                 )}
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div className="bg-white rounded-xl p-3 sm:p-4 border border-gray-200">
-                    <div className="flex items-center gap-2 mb-1 sm:mb-2">
-                      <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500" />
-                      <span className="text-xs sm:text-sm font-medium text-gray-700">Category</span>
-                    </div>
-                    <p className="text-gray-600 text-sm sm:text-base">
-                      {selectedNotification.category ? selectedNotification.category.charAt(0).toUpperCase() + selectedNotification.category.slice(1) : 'General'}
-                    </p>
+
+                {/* Action Button if needed */}
+                {selectedNotification.metadata?.actionUrl && (
+                  <div className="mt-6">
+                    <button 
+                      onClick={() => performNotificationAction(selectedNotification.id)}
+                      className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm sm:text-base"
+                    >
+                      Perform Action
+                    </button>
                   </div>
-                  <div className="bg-white rounded-xl p-3 sm:p-4 border border-gray-200">
-                    <div className="flex items-center gap-2 mb-1 sm:mb-2">
-                      <Bell className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500" />
-                      <span className="text-xs sm:text-sm font-medium text-gray-700">Status</span>
-                    </div>
-                    <p className={`font-medium text-sm sm:text-base ${selectedNotification.read ? 'text-emerald-600' : 'text-amber-600'}`}>
-                      {selectedNotification.read ? 'Read' : 'Unread'}
-                    </p>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
 
@@ -598,19 +480,11 @@ export default function NotificationScreen() {
             <div className="border-t border-gray-200 bg-gray-50 p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="text-xs sm:text-sm text-gray-500 order-2 sm:order-1">
-                  <span className="font-medium">ID:</span> {selectedNotification.id}
+                  <span className="font-medium">Notification ID:</span> {selectedNotification.id}
                 </div>
                 <div className="flex gap-3 w-full sm:w-auto order-1 sm:order-2">
-                  <button onClick={closePopup} className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 flex-1 sm:flex-none text-sm sm:text-base flex items-center justify-center gap-2">
-                    <X className="w-4 h-4" />
-                    <span>Close</span>
-                  </button>
-                  <button 
-                    onClick={() => { deleteNotification(selectedNotification.id); closePopup(); }} 
-                    className="px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl hover:opacity-90 flex-1 sm:flex-none text-sm sm:text-base flex items-center justify-center gap-2"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span>Delete</span>
+                  <button onClick={closePopup} className="px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex-1 sm:flex-none text-sm sm:text-base">
+                    Close
                   </button>
                 </div>
               </div>

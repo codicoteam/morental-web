@@ -33,6 +33,7 @@ import Agentdrivers from "../pages/agent/agentdriver";
 import AgentReservation from "../pages/agent/agentreservation";
 import AgentChatScreen from "../pages/agent/agentchart";
 import AgentProfile from "../pages/agent/agentprofile";
+import AgentNotification from "../pages/agent/agentnotification";
 
 function App() {
   return (
@@ -71,7 +72,8 @@ function App() {
             <Route path="/agentdriver" element={<Agentdrivers/>} />
             <Route path="/agentreservations" element={<AgentReservation/>} />
             <Route path="/agentchart" element={<AgentChatScreen/>} />
-             <Route path="/agentprofile" element={<AgentProfile/>} />
+            <Route path="/agentprofile" element={<AgentProfile/>} />
+             <Route path="/agentnotification" element={<AgentNotification/>} />
 
 
 

@@ -35,9 +35,8 @@ const NotificationService = {
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         throw error.response?.data || "Failed to retrieve notifications";
-      } else {
-        throw "An unexpected error occurred";
       }
+      throw "An unexpected error occurred";
     }
   },
 
@@ -55,9 +54,8 @@ const NotificationService = {
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         throw error.response?.data || "Failed to retrieve your notifications";
-      } else {
-        throw "An unexpected error occurred";
       }
+      throw "An unexpected error occurred";
     }
   },
 
@@ -75,15 +73,109 @@ const NotificationService = {
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         throw error.response?.data || "Failed to retrieve notification";
-      } else {
-        throw "An unexpected error occurred";
       }
+      throw "An unexpected error occurred";
     }
   },
 
   /**
-   * Delete a notification
+   * Mark a notification as read
+   * POST /api/v1/notifications/{id}/read
+   */
+  markAsRead: async (id: string): Promise<any> => {
+    try {
+      const token = getAuthToken();
+      const response = await axios.post(
+        `${BASE_URL}/${id}/read`,
+        {},
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+      return response.data;
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        throw error.response?.data || "Failed to mark notification as read";
+      }
+      throw "An unexpected error occurred";
+    }
+  },
+
+  /**
+   * Perform an action on a notification
+   * POST /api/v1/notifications/{id}/action
+   */
+  performAction: async (
+    id: string,
+    payload?: Record<string, any>
+  ): Promise<any> => {
+    try {
+      const token = getAuthToken();
+      const response = await axios.post(
+        `${BASE_URL}/${id}/action`,
+        payload || {},
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+      return response.data;
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        throw error.response?.data || "Failed to perform notification action";
+      }
+      throw "An unexpected error occurred";
+    }
+  },
+
+  /**
+   * Create a notification
+   * POST /api/v1/notifications
+   * status: draft | scheduled | sent
+   */
+  createNotification: async (
+    payload: Record<string, any>
+  ): Promise<any> => {
+    try {
+      const token = getAuthToken();
+      const response = await axios.post(`${BASE_URL}`, payload, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      return response.data;
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        throw error.response?.data || "Failed to create notification";
+      }
+      throw "An unexpected error occurred";
+    }
+  },
+
+  /**
+   * Update a notification
+   * PATCH /api/v1/notifications/{id}
+   * Not allowed if sent or cancelled
+   */
+  updateNotification: async (
+    id: string,
+    payload: Record<string, any>
+  ): Promise<any> => {
+    try {
+      const token = getAuthToken();
+      const response = await axios.patch(`${BASE_URL}/${id}`, payload, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      return response.data;
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        throw error.response?.data || "Failed to update notification";
+      }
+      throw "An unexpected error occurred";
+    }
+  },
+
+  /**
+   * Disable (soft-delete) a notification
    * DELETE /api/v1/notifications/{id}
+   * Sets is_active = false
    */
   deleteNotification: async (id: string): Promise<any> => {
     try {
@@ -95,22 +187,21 @@ const NotificationService = {
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         throw error.response?.data || "Failed to delete notification";
-      } else {
-        throw "An unexpected error occurred";
       }
+      throw "An unexpected error occurred";
     }
   },
 
   /**
-   * Bulk mark notifications as read for the current user
-   * POST /api/v1/notifications/bulk/read
+   * Send a notification immediately
+   * POST /api/v1/notifications/{id}/send
    */
-  bulkMarkAsRead: async (data?: any): Promise<any> => {
+  sendNotification: async (id: string): Promise<any> => {
     try {
       const token = getAuthToken();
       const response = await axios.post(
-        `${BASE_URL}/bulk/read`,
-        data || {},
+        `${BASE_URL}/${id}/send`,
+        {},
         {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         }
@@ -118,30 +209,84 @@ const NotificationService = {
       return response.data;
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
-        throw error.response?.data || "Failed to mark notifications as read";
-      } else {
-        throw "An unexpected error occurred";
+        throw error.response?.data || "Failed to send notification";
       }
+      throw "An unexpected error occurred";
     }
   },
 
   /**
-   * Get notification acknowledgements
-   * GET /api/v1/notifications/{id}/acks
+   * Cancel a notification
+   * POST /api/v1/notifications/{id}/cancel
    */
-  getNotificationAcks: async (id: string): Promise<any> => {
+  cancelNotification: async (id: string): Promise<any> => {
     try {
       const token = getAuthToken();
-      const response = await axios.get(`${BASE_URL}/${id}/acks`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const response = await axios.post(
+        `${BASE_URL}/${id}/cancel`,
+        {},
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
       return response.data;
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
-        throw error.response?.data || "Failed to retrieve notification acknowledgements";
-      } else {
-        throw "An unexpected error occurred";
+        throw error.response?.data || "Failed to cancel notification";
       }
+      throw "An unexpected error occurred";
+    }
+  },
+
+  /**
+   * List notifications visible/sent to a specific user
+   * GET /api/v1/notifications/for-user/{userId}
+   */
+  getNotificationsForUser: async (userId: string): Promise<any> => {
+    try {
+      const token = getAuthToken();
+      const response = await axios.get(
+        `${BASE_URL}/for-user/${userId}`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+      return response.data;
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        throw (
+          error.response?.data ||
+          "Failed to retrieve notifications for user"
+        );
+      }
+      throw "An unexpected error occurred";
+    }
+  },
+
+  /**
+   * List notifications created by a specific user
+   * GET /api/v1/notifications/created-by/{userId}
+   */
+  getNotificationsCreatedByUser: async (
+    userId: string
+  ): Promise<any> => {
+    try {
+      const token = getAuthToken();
+      const response = await axios.get(
+        `${BASE_URL}/created-by/${userId}`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+      return response.data;
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        throw (
+          error.response?.data ||
+          "Failed to retrieve created notifications"
+        );
+      }
+      throw "An unexpected error occurred";
     }
   },
 };

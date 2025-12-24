@@ -68,6 +68,7 @@ export interface Fee {
 }
 
 export interface Pricing {
+  dailyRate: any;
   plan_name: string;
   _id: string;
   branch_id: Branch;
