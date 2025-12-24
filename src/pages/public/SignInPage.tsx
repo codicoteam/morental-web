@@ -1,17 +1,14 @@
+// pages/auth/SignInScreen.tsx
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import { loginUser } from "../../features/auth/authThunks";
 import { resetAuthError } from "../../features/auth/authSlice";
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 
 export default function SignInScreen() {
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  });
-  const [] = useState(false);
+  const [formData, setFormData] = useState({ email: '', password: '' });
   const [selectedRole, setSelectedRole] = useState<string>('');
 
   const dispatch = useAppDispatch();
@@ -19,12 +16,13 @@ export default function SignInScreen() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Get role from query parameters
+  // hydrate from ?role=
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
-    const role = searchParams.get('role');
+    const role = searchParams.get('role') || '';
     if (role) {
       setSelectedRole(role);
+      sessionStorage.setItem("selected_role", role);
       console.log('Selected role from query:', role);
     }
   }, [location]);
@@ -35,41 +33,39 @@ export default function SignInScreen() {
 
     dispatch(resetAuthError());
 
-    // Dispatch login thunk
     dispatch(loginUser({
       email: formData.email,
-      password: formData.password
-    })).then((res: any) => {
+      password: formData.password,
+      // if your backend ignores extra fields, this won’t break; remove if strict:
+      // @ts-ignore
+      selected_role: selectedRole || undefined,
+    }) as any).then((res: any) => {
       console.log("LOGIN RESPONSE FROM THUNK:", res);
     });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-
-    if (error) {
-      dispatch(resetAuthError());
-    }
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (error) dispatch(resetAuthError());
   };
 
-  // Handle successful login - REDIRECT TO APPROPRIATE DASHBOARD BASED ON ROLE
+  // redirect post-login based on selectedRole (fallback to user's first role)
   useEffect(() => {
     if (status === 'succeeded' && user && token) {
-      console.log('Login successful!', { user, token, selectedRole });
-      
-      // Redirect based on selected role
-      switch (selectedRole) {
+      const role =
+        selectedRole ||
+        user.roles?.[0] ||
+        'customer';
+
+      console.log('Login successful!', { user, token, selectedRole: role });
+
+      switch (role) {
         case 'admin':
-          window.location.href = '/dashboard';
+          window.location.href = '/admin-dashboard';
           break;
-        case 'branch-manager':
+        case 'manager':           // enum in backend
+        case 'branch-manager':    // keep supporting your old naming
           window.location.href = '/branch-manager-dashboard';
-          break;
-        case 'customer':
-          window.location.href = '/dashboardy';
           break;
         case 'agent':
           window.location.href = '/agentdashboard';
@@ -77,27 +73,22 @@ export default function SignInScreen() {
         case 'driver':
           window.location.href = '/driver-dashboard';
           break;
+        case 'customer':
         default:
-          // Fallback to generic dashboard if no role selected
-          window.location.href = '/';
+          window.location.href = '/dashboardy';
           break;
       }
     }
   }, [status, user, token, selectedRole, navigate]);
 
-  // Handle login errors
   useEffect(() => {
-    if (error) {
-      console.error('Login error:', error);
-    }
+    if (error) console.error('Login error:', error);
   }, [error]);
 
   const isLoading = loading || status === 'loading';
 
   return (
     <div className="min-h-screen w-full relative flex items-center justify-center overflow-hidden">
-      
-      {/* Luxury Car Background */}
       <div 
         className="absolute inset-0 bg-cover bg-center bg-no-repeat bg-fixed"
         style={{
@@ -108,18 +99,15 @@ export default function SignInScreen() {
         <div className="absolute inset-0 bg-black/70"></div>
       </div>
 
-      {/* Decorative Lights */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute w-96 h-96 bg-white/10 rounded-full blur-3xl top-20 left-10 animate-pulse"></div>
         <div className="absolute w-96 h-96 bg-white/5 rounded-full blur-3xl bottom-20 right-10 animate-pulse"></div>
         <div className="absolute w-64 h-64 bg-blue-500/10 rounded-full blur-3xl top-1/3 right-1/4 animate-pulse delay-1000"></div>
       </div>
 
-      {/* Card */}
       <div className="relative z-10 w-full max-w-md mx-4">
         <div className="backdrop-blur-xl bg-white/10 rounded-3xl shadow-2xl border border-white/20 p-8 transition-all duration-300 hover:scale-[1.02]">
 
-          {/* Header with Role Indicator */}
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white tracking-tight mb-2">
               Sign In
@@ -141,24 +129,19 @@ export default function SignInScreen() {
             )}
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-red-200 text-sm text-center">
               {error}
             </div>
           )}
 
-          {/* Loading Message */}
           {isLoading && (
             <div className="mb-4 p-3 bg-blue-500/20 border border-blue-500/50 rounded-xl text-blue-200 text-sm text-center">
               Signing you in...
             </div>
           )}
 
-          {/* Fields */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            
-            {/* Email */}
             <div className="relative group">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-400 transition-colors duration-300" />
               <input
@@ -173,7 +156,6 @@ export default function SignInScreen() {
               />
             </div>
 
-            {/* Password */}
             <div className="relative group">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-400 transition-colors duration-300" />
               <input
@@ -196,7 +178,6 @@ export default function SignInScreen() {
               </button>
             </div>
 
-            {/* Remember Me & Forgot Password */}
             <div className="flex items-center justify-between">
               <label className="flex items-center">
                 <input 
@@ -211,11 +192,10 @@ export default function SignInScreen() {
               </a>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white font-semibold rounded-xl shadow-lg transform transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] border border-blue-500/30 hover:border-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center"
+              className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white font-semibold rounded-xl shadow-lg transform transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] border border-blue-500/30 hover:border-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
               {isLoading ? (
                 <>
@@ -231,16 +211,15 @@ export default function SignInScreen() {
             </button>
           </form>
 
-          {/* Footer */}
           <div className="mt-6 text-center">
             <p className="text-gray-300 text-sm">
               Don't have an account?{' '}
-              <a 
-                href="/signup"
+              <Link
+                to={`/signup${selectedRole ? `?role=${encodeURIComponent(selectedRole)}` : ""}`}
                 className="text-blue-400 font-semibold hover:text-blue-300 transition-colors underline"
               >
                 Signup
-              </a>
+              </Link>
             </p>
             <div className="mt-4">
               <button
@@ -253,7 +232,6 @@ export default function SignInScreen() {
           </div>
         </div>
 
-        {/* Bottom Text */}
         <p className="text-center text-gray-400 text-xs mt-6 backdrop-blur-sm bg-black/30 rounded-lg py-2 px-4">
           Protected by our Terms of Service and Privacy Policy
         </p>

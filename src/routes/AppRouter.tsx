@@ -34,6 +34,7 @@ import AgentReservation from "../pages/agent/agentreservation";
 import AgentChatScreen from "../pages/agent/agentchart";
 import AgentProfile from "../pages/agent/agentprofile";
 import AgentNotification from "../pages/agent/agentnotification";
+import UsersPage from "../pages/admin/users/users_page";
 
 function App() {
   return (
@@ -46,12 +47,13 @@ function App() {
           <Route path="/roles" element={<RoleSelection/>} />
           <Route path="/signup" element={<SignupScreen/>} />
           <Route path="/login" element={<SignInScreen/>} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/vehicless" element={<Vehicles />} />
-          <Route path="/bookings" element={<Bookings />} />
-          <Route path="/customers" element={<Customers />} />
-          <Route path="/staff" element={<Staff />} />
+          <Route path="/admin-dashboard" element={<Dashboard />} />
+          <Route path="/admin-users" element={<UsersPage />} />
 
+          <Route path="/admin-vehicles" element={<Vehicles />} />
+          <Route path="/admin-bookings" element={<Bookings />} />
+          <Route path="/admin-customers" element={<Customers />} />
+          <Route path="/admin-staff" element={<Staff />} />
           // customer Routes
           <Route path="/dashboardy" element={<Dashboardy/>} />
           <Route path="/vehicle" element={<Vihicles/>} />
