@@ -56,6 +56,14 @@ export type UpdateUserPayload = {
   email_verified?: boolean;
 };
 
+export type CreateUserPayload = {
+  full_name: string;
+  email: string;
+  phone?: string;
+  password: string;
+  roles?: string[];
+};
+
 export type ApiErrorDetails = {
   message?: string;
   error?: string;
@@ -154,6 +162,35 @@ export async function fetchUserById(userId: string): Promise<IUser> {
 }
 
 /**
+ * POST /users/admin-create
+ * Creates a new user (admin-create endpoint)
+ */
+export async function createUser(
+  payload: CreateUserPayload
+): Promise<IUser | { success: boolean; data?: any }> {
+  try {
+    const res = await axios.post(`${API_BASE}/users/admin-create`, payload, {
+      headers: {
+        ...authHeaders(),
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    });
+
+    // Supports common API shapes:
+    // - { success: true, data: {...user} }
+    // - { data: {...user} }
+    // - { ...user }
+    const body = res.data;
+    const maybeUser = body?.data?.user || body?.data || body?.user;
+
+    return maybeUser || body;
+  } catch (err) {
+    throw toApiError(err, "Failed to create user");
+  }
+}
+
+/**
  * PATCH /users/:id
  */
 export async function updateUser(
@@ -161,18 +198,32 @@ export async function updateUser(
   payload: UpdateUserPayload
 ): Promise<IUser> {
   try {
-    const res = await axios.patch(`${API_BASE}/users/${userId}`, payload, {
-      headers: {
-        ...authHeaders(),
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-    });
+    // 1. Convert payload to JSON
+    const jsonPayload = JSON.stringify(payload);
+
+    // 2. Log payload (both object + JSON for debugging)
+    console.log("Updating user payload (object):", payload);
+    console.log("Updating user payload (JSON):", jsonPayload);
+
+    // 3. Send JSON to SPI
+    const res = await axios.patch(
+      `${API_BASE}/users/${userId}`,
+      jsonPayload,
+      {
+        headers: {
+          ...authHeaders(),
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
     return res.data?.data || res.data;
   } catch (err) {
     throw toApiError(err, "Failed to update user");
   }
 }
+
 
 /** DELETE /users/:id */
 export async function deleteUser(userId: string): Promise<{ success: boolean }> {
