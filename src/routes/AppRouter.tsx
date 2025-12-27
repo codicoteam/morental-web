@@ -10,7 +10,6 @@ import Staff from "../pages/admin/StaffPage";
 import RoleSelection from "../pages/admin/RolesPage";
 import SignupScreen from "../pages/public/SignUpPage";
 import SignInScreen from "../pages/public/SignInPage";
-
 //Custormer pages 
 import Dashboardy from "../pages/customer/CustomerDashboardPage";
 import Vihicles from "../pages/customer/Vihicle";
@@ -21,9 +20,6 @@ import Drivers from "../pages/customer/CustomerDriversPage";
 import BookingPage from "../pages/customer/Bookingpage";
 import ChatScreen from "../pages/customer/Chat";
 import NotificationScreen from "../pages/customer/notification";
-
-
-
 //Agent Pages
 import AgentDashboard from "../pages/agent/agentdashboard";
 import AgentbookingPage from "../pages/agent/agentbooking";
@@ -35,13 +31,21 @@ import AgentChatScreen from "../pages/agent/agentchart";
 import AgentProfile from "../pages/agent/agentprofile";
 import AgentNotification from "../pages/agent/agentnotification";
 import UsersPage from "../pages/admin/users/users_page";
+import AdminUserProfilePage from "../pages/admin/users/user_profiles";
+import VehicleModelManagement from "../pages/admin/vehicle_management/vehicle_management_page";
+import BranchManagementScreen from "../pages/admin/branch_manager/branch_manager_page";
+import VehicleUnitManagement from "../pages/admin/vehicle_management/vehicle_unit_management";
+import RatePlanScreen from "../pages/admin/rate_plan/rate_plan_page";
+import PromoCodeScreen from "../pages/admin/promo_code_manager/promo_code_screen";
+import ServiceScheduleScreen from "../pages/admin/services/service_schedule_screen";
+import ServiceOrderScreen from "../pages/admin/services/service_order_screen";
+import ChatAdminScreen from "../pages/admin/chats/chats_admin_page";
 
 function App() {
   return (
     <ThemeProvider>
       <Router>
         <Routes>
-
         //Admin routes
           <Route path="/" element={<Welcome />} />
           <Route path="/roles" element={<RoleSelection/>} />
@@ -49,8 +53,15 @@ function App() {
           <Route path="/login" element={<SignInScreen/>} />
           <Route path="/admin-dashboard" element={<Dashboard />} />
           <Route path="/admin-users" element={<UsersPage />} />
-
-          <Route path="/admin-vehicles" element={<Vehicles />} />
+          <Route path="/admin/user-profiles/:userId" element={<AdminUserProfilePage />} />
+          <Route path="/admin-branches" element={<BranchManagementScreen />} />
+          <Route path="/admin-vehicle-models" element={<VehicleModelManagement />} />
+          <Route path="/admin-rate-plans" element={<RatePlanScreen />} />
+          <Route path="/admin-service-schedules" element={<ServiceScheduleScreen />} />
+          <Route path="/admin-service-orders" element={<ServiceOrderScreen />} />
+          <Route path="/admin-chats" element={<ChatAdminScreen />} />
+          <Route path="/admin-promo-codes" element={<PromoCodeScreen />} />
+          <Route path="/admin-vehicles" element={<VehicleUnitManagement />} />
           <Route path="/admin-bookings" element={<Bookings />} />
           <Route path="/admin-customers" element={<Customers />} />
           <Route path="/admin-staff" element={<Staff />} />
@@ -65,7 +76,6 @@ function App() {
            <Route path="/chart" element={<ChatScreen/>} />
            <Route path="/notification" element={<NotificationScreen/>} />
 
-
            //Agent Routes
             <Route path="/agentdashboard" element={<AgentDashboard/>} />
             <Route path="/agentbook/:id" element={<AgentbookingPage/>} />
@@ -76,8 +86,6 @@ function App() {
             <Route path="/agentchart" element={<AgentChatScreen/>} />
             <Route path="/agentprofile" element={<AgentProfile/>} />
              <Route path="/agentnotification" element={<AgentNotification/>} />
-
-
 
        </Routes>
       </Router>
