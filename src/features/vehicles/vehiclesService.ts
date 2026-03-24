@@ -1,7 +1,8 @@
 import axiosInstance from "../../api/axiosInstance";
 import { loadAuthFromStorage } from "../auth/authService"; 
 
-const BASE_URL = "http://13.61.185.238:5050/api/v1/rate-plans";
+
+const BASE_URL = "http://13.61.185.238:5050/api/v1/vehicles";
 
 // ----------------------
 // Interfaces
