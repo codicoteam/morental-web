@@ -151,12 +151,45 @@ const Dashboardy = () => {
     return apiResponse?.data?.items || apiResponse?.items || [];
   };
 
-  const getReservationsArray = (): Reservation[] => {
-    if (!reservations) return [];
+  // const getReservationsArray = (): Reservation[] => {
+  //   if (!reservations) return [];
   
-    const apiResponse = reservations as any;
-    return (apiResponse?.success && apiResponse.data) ? apiResponse.data.slice(0, 3) : [];
-  };
+  //   const apiResponse = reservations as any;
+  //   return (apiResponse?.success && apiResponse.data) ? apiResponse.data.slice(0, 3) : [];
+  // };
+
+  const getReservationsArray = (): Reservation[] => {
+  if (!reservations) return [];
+
+  const apiResponse = reservations as any;
+  
+  // Handle different response structures
+  let reservationsData = [];
+  if (apiResponse?.success && Array.isArray(apiResponse.data)) {
+    reservationsData = apiResponse.data;
+  } else if (Array.isArray(apiResponse)) {
+    reservationsData = apiResponse;
+  } else if (apiResponse?.items && Array.isArray(apiResponse.items)) {
+    reservationsData = apiResponse.items;
+  } else {
+    reservationsData = [];
+  }
+  
+  // Add null checks for each reservation
+  return reservationsData.slice(0, 3).map((res: any) => ({
+    ...res,
+    vehicle_id: res.vehicle_id || {},
+    pickup: {
+      ...res.pickup,
+      branch_id: res.pickup?.branch_id || { name: 'Unknown Location' },
+      at: res.pickup?.at || new Date().toISOString()
+    },
+    pricing: {
+      total: res.pricing?.total || 0,
+      currency: res.pricing?.currency || 'USD'
+    }
+  }));
+};
 
   const statusColors: Record<string, string> = {
     "available": "bg-green-100 text-green-800",
@@ -559,66 +592,67 @@ const Dashboardy = () => {
 
               {!vehiclesLoading && !vehiclesError && recentVehicles.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {recentVehicles.map((pricing) => {
-                    const vehicle = pricing.vehicle_id;
-                    const isAvailable = pricing.active && vehicle.availability_state === 'available';
-                    
-                    return (
-                      <div key={pricing._id} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col">
-                        <div className="relative h-48 bg-gradient-to-br from-gray-100 to-gray-200">
-                          {vehicle.photos?.[0] ? (
-                            <img 
-                              src={vehicle.photos[0]} 
-                              alt={pricing.name} 
-                              className="w-full h-full object-cover" 
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
-                              <CarIcon className="w-12 h-12 text-gray-400" />
-                            </div>
-                          )}
-                          <div className="absolute top-3 right-3">
-                            <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${statusColors[vehicle.availability_state] || "bg-gray-100 text-gray-800"}`}>
-                              {statusTexts[vehicle.availability_state] || "Unavailable"}
-                            </span>
-                          </div>
-                          <div className="absolute bottom-3 left-3">
-                            <span className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-100 text-blue-800">
-                              {pricing.vehicle_class.toUpperCase()}
-                            </span>
-                          </div>
-                        </div>
+                 {recentVehicles.map((pricing) => {
+  const vehicle = pricing.vehicle_id;
+  const isAvailable = pricing.active && vehicle?.availability_state === 'available';
+  
+  return (
+    <div key={pricing._id} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col">
+      <div className="relative h-48 bg-gradient-to-br from-gray-100 to-gray-200">
+        {/* Fix: Add optional chaining for vehicle.photos */}
+        {vehicle?.photos?.[0] ? (
+          <img 
+            src={vehicle.photos[0]} 
+            alt={pricing.name} 
+            className="w-full h-full object-cover" 
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
+            <CarIcon className="w-12 h-12 text-gray-400" />
+          </div>
+        )}
+        <div className="absolute top-3 right-3">
+          <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${statusColors[vehicle?.availability_state] || "bg-gray-100 text-gray-800"}`}>
+            {statusTexts[vehicle?.availability_state] || "Unavailable"}
+          </span>
+        </div>
+        <div className="absolute bottom-3 left-3">
+          <span className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-100 text-blue-800">
+            {pricing.vehicle_class?.toUpperCase() || 'STANDARD'}
+          </span>
+        </div>
+      </div>
 
-                        <div className="p-5 flex-1 flex flex-col">
-                          <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">{pricing.name}</h3>
-                          <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
-                            <MapPin className="w-4 h-4" />
-                            <span>{pricing.branch_id?.name || 'Unknown Location'}</span>
-                          </div>
-                          <div className="mt-auto">
-                            <div className="flex items-center justify-between mb-4">
-                              <div>
-                                <p className="text-sm text-gray-500">Daily rate</p>
-                                <p className="text-xl font-bold text-blue-700">
-                                  ${parseDecimal(pricing.daily_rate)}
-                                  <span className="text-sm text-gray-500 ml-1">/{pricing.currency}</span>
-                                </p>
-                              </div>
-                            </div>
-                            <button 
-                              onClick={() => handleBookNow(pricing)} 
-                              disabled={!isAvailable} 
-                              className={`w-full py-3 rounded-lg font-semibold transition-all ${
-                                isAvailable ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:opacity-90 text-white shadow-md' : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                              }`}
-                            >
-                              {isAvailable ? 'Book Now' : 'Unavailable'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+          <div className="p-5 flex-1 flex flex-col">
+            <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">{pricing.name || 'Unnamed Vehicle'}</h3>
+            <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+              <MapPin className="w-4 h-4" />
+              <span>{pricing.branch_id?.name || 'Unknown Location'}</span>
+            </div>
+            <div className="mt-auto">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm text-gray-500">Daily rate</p>
+                  <p className="text-xl font-bold text-blue-700">
+                    ${parseDecimal(pricing.daily_rate)}
+                    <span className="text-sm text-gray-500 ml-1">/{pricing.currency || 'USD'}</span>
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => handleBookNow(pricing)} 
+                disabled={!isAvailable} 
+                className={`w-full py-3 rounded-lg font-semibold transition-all ${
+                  isAvailable ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:opacity-90 text-white shadow-md' : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                {isAvailable ? 'Book Now' : 'Unavailable'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    })}
                 </div>
               )}
 
@@ -716,68 +750,69 @@ const Dashboardy = () => {
                 {reservationsError && !reservationsLoading && <ErrorMessage error={reservationsError} />}
 
                 {!reservationsLoading && !reservationsError && recentReservations.length > 0 && (
-                  <div className="space-y-4">
-                    {recentReservations.map((reservation) => {
-                      const vehicle = reservation.vehicle_id;
-                      
-                      return (
-                        <div key={reservation._id} className="bg-white rounded-xl shadow-lg border border-gray-200 p-5">
-                          <div className="flex items-start gap-3 mb-3">
-                            <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0">
-                              {vehicle.photos?.[0] ? (
-                                <img 
-                                  src={vehicle.photos[0]} 
-                                  alt={`${vehicle.vehicle_model_id?.make || 'Vehicle'} ${vehicle.vehicle_model_id?.model || ''}`} 
-                                  className="w-full h-full object-cover" 
-                                />
-                              ) : (
-                                <div className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
-                                  <CarIcon className="w-6 h-6 text-gray-400" />
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-start justify-between mb-2">
-                                <div>
-                                  <p className="font-semibold text-gray-900">
-                                    {vehicle.vehicle_model_id?.make || 'Vehicle'} {vehicle.vehicle_model_id?.model || ''}
-                                  </p>
-                                  <p className="text-sm text-gray-500">
-                                    {vehicle.plate_number ? `Plate: ${vehicle.plate_number}` : 'No plate'}
-                                  </p>
-                                </div>
-                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${reservationStatusColors[reservation.status.toLowerCase()] || "bg-gray-100 text-gray-800"}`}>
-                                  {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
-                                </span>
-                              </div>
-                              <div className="space-y-2 mb-4">
-                                <div className="flex items-center justify-between text-sm text-gray-600">
-                                  <div className="flex items-center gap-1">
-                                    <Calendar className="w-4 h-4" />
-                                    <span>Pickup: {formatDate(reservation.pickup.at)}</span>
-                                  </div>
-                                  <div className="text-right">
-                                    <span className="font-bold text-blue-700">
-                                      {formatCurrency(reservation.pricing?.total || 0, reservation.pricing?.currency)}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-1 text-sm text-gray-600">
-                                  <MapPin className="w-4 h-4" />
-                                  <span>{reservation.pickup.branch_id?.name || 'Unknown Location'}</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-500">{reservation.code}</span>
-                                <button onClick={() => navigate(`/reservations`)} className="text-blue-600 hover:text-blue-800 font-medium text-sm">View Details</button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+  <div className="space-y-4">
+    {recentReservations.map((reservation) => {
+      const vehicle = reservation.vehicle_id;
+      
+      return (
+        <div key={reservation._id} className="bg-white rounded-xl shadow-lg border border-gray-200 p-5">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0">
+              {/* Fix: Add optional chaining and null checks */}
+              {vehicle?.photos?.[0] ? (
+                <img 
+                  src={vehicle.photos[0]} 
+                  alt={`${vehicle?.vehicle_model_id?.make || 'Vehicle'} ${vehicle?.vehicle_model_id?.model || ''}`} 
+                  className="w-full h-full object-cover" 
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
+                  <CarIcon className="w-6 h-6 text-gray-400" />
+                </div>
+              )}
+            </div>
+            <div className="flex-1">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <p className="font-semibold text-gray-900">
+                    {vehicle?.vehicle_model_id?.make || 'Vehicle'} {vehicle?.vehicle_model_id?.model || ''}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {vehicle?.plate_number ? `Plate: ${vehicle.plate_number}` : 'No plate'}
+                  </p>
+                </div>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${reservationStatusColors[reservation.status.toLowerCase()] || "bg-gray-100 text-gray-800"}`}>
+                  {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
+                </span>
+              </div>
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center justify-between text-sm text-gray-600">
+                  <div className="flex items-center gap-1">
+                    <Calendar className="w-4 h-4" />
+                    <span>Pickup: {formatDate(reservation.pickup.at)}</span>
                   </div>
-                )}
+                  <div className="text-right">
+                    <span className="font-bold text-blue-700">
+                      {formatCurrency(reservation.pricing?.total || 0, reservation.pricing?.currency)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-sm text-gray-600">
+                  <MapPin className="w-4 h-4" />
+                  <span>{reservation.pickup.branch_id?.name || 'Unknown Location'}</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500">{reservation.code}</span>
+                <button onClick={() => navigate(`/reservations`)} className="text-blue-600 hover:text-blue-800 font-medium text-sm">View Details</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
 
                 {!reservationsLoading && !reservationsError && recentReservations.length === 0 && (
                   <EmptyState icon={Calendar} title="No reservations yet" message="Book a vehicle to see your reservations here." />
