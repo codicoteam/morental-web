@@ -883,9 +883,16 @@ const Vehicles = () => {
         <div className="border-t border-gray-200 p-6 bg-gray-50">
           <button
             onClick={() => {
+
+              console.log('Selected Vehicle before navigation:', selectedVehicle);
+              console.log('Selected Plan before navigation:', selectedPlan);
+              
               closeModal();
               navigate(`/book/${selectedVehicle?._id}`, { 
-                state: { ratePlan: selectedPlan } 
+                state: { 
+                  ratePlan: selectedPlan ,
+                  vehicle: selectedVehicle
+                } 
               });
             }}
             disabled={!selectedPlan.active}

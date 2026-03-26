@@ -40,6 +40,7 @@ import PromoCodeScreen from "../pages/admin/promo_code_manager/promo_code_screen
 import ServiceScheduleScreen from "../pages/admin/services/service_schedule_screen";
 import ServiceOrderScreen from "../pages/admin/services/service_order_screen";
 import ChatAdminScreen from "../pages/admin/chats/chats_admin_page";
+import CreateReservation from "../pages/customer/CreateReservation";
 
 function App() {
   return (
@@ -72,7 +73,9 @@ function App() {
           <Route path="/orders" element={<Service/>} />
           <Route path="/profile" element={<Profile/>} />
           <Route path="/driver" element={<Drivers/>} />
-          <Route path="/book/:id" element={<BookingPage/>} />
+          {/* <Route path="/book" element={<CreateReservation/>}/> */}
+          {/* <Route path="/book/:id" element={<BookingPage/>} /> */}
+          <Route path="/book/:id" element={<CreateReservation/>} />
            <Route path="/chart" element={<ChatScreen/>} />
            <Route path="/notification" element={<NotificationScreen/>} />
 
