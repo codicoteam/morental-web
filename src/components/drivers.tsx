@@ -1,8 +1,9 @@
 import { 
   X, Loader2, CheckCircle, CreditCard, Check, AlertCircle,
-  DollarSign, Calendar, Clock3, Navigation, MapPin, Clock} from 'lucide-react';
-import type { Driver, ApiBooking, BookingFormData, BookingDrawerData } from '../drivertypes';
-
+  DollarSign, Calendar, Clock3, Navigation, MapPin, Clock } from 'lucide-react';
+import type { Driver, ApiBooking, BookingFormData, BookingDrawerData , Location } from '../drivertypes';
+// import { MapLocationPicker } from './MapLocationPicker';
+import { CombinedMapPicker } from './MapLocationPicker';
 // Success Message Component
 export const SuccessMessage: React.FC<{
   message: string;
@@ -200,7 +201,12 @@ export const BookingDrawer: React.FC<{
   );
 };
 
-// Booking Form Modal Component
+
+import React, { useMemo} from 'react';
+
+
+
+
 export const BookingFormModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
@@ -220,33 +226,111 @@ export const BookingFormModal: React.FC<{
 }) => {
   if (!isOpen) return null;
 
-  const formatDateTimeLocal = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toISOString().slice(0, 16);
-  };
+  // const formatDateTimeLocal = (dateString: string) => {
+  //   const date = new Date(dateString);
+  //   return date.toISOString().slice(0, 16);
+  // };
+
+//   const formatDateTimeLocal = (dateString: string) => {
+//   const date = new Date(dateString);
+
+//   const pad = (n: number) => n.toString().padStart(2, "0");
+
+//   const year = date.getFullYear();
+//   const month = pad(date.getMonth() + 1);
+//   const day = pad(date.getDate());
+//   const hours = pad(date.getHours());
+//   const minutes = pad(date.getMinutes());
+
+//   return `${year}-${month}-${day}T${hours}:${minutes}`;
+// };
+
+const formatDateTimeLocal = (dateString: string) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "";
+  
+  // Get local datetime string in YYYY-MM-DDThh:mm format
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+  
 
   const handleFieldChange = (field: keyof BookingFormData, value: any) => {
     onFormDataChange({ ...formData, [field]: value });
   };
 
-  const handleNestedChange = (parent: keyof BookingFormData, field: string, value: any) => {
-    onFormDataChange({
-      ...formData,
-      [parent]: {
-        ...(formData[parent] as any),
-        [field]: value
-      }
-    });
-  };
+ 
+  const handlePickupChange = (location: Location) => {
+  onFormDataChange({
+    ...formData,
+    pickup_location: location
+  });
+};
+
+const handleDropoffChange = (location: Location) => {
+  onFormDataChange({
+    ...formData,
+    dropoff_location: location
+  });
+};
+
+  // const totalAmount = driver.hourly_rate * formData.pricing.hours_requested;
+ const hoursRequested = useMemo(() => {
+  if (formData.start_at && formData.end_at) {
+    const start = new Date(formData.start_at);
+    const end = new Date(formData.end_at);
+
+    const diff = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+
+    if (diff > 0) {
+      return Math.round(diff * 10) / 10;
+    }
+  }
+
+  return formData.pricing.hours_requested;
+}, [formData.start_at, formData.end_at]);
+
+  const totalAmount = driver.hourly_rate * hoursRequested;
+  const validation = useMemo(() => {
+    const isValidCoordinate = (lat: number, lng: number) => {
+      return lat !== 0 && lng !== 0 && !isNaN(lat) && !isNaN(lng);
+    };
+    
+    const isPickupSelected = !!(formData.pickup_location?.address && 
+                                 formData.pickup_location.address.trim() !== '' &&
+                                 isValidCoordinate(formData.pickup_location?.latitude, formData.pickup_location?.longitude));
+    
+    const isDropoffSelected = !!(formData.dropoff_location?.address && 
+                                  formData.dropoff_location.address.trim() !== '' &&
+                                  isValidCoordinate(formData.dropoff_location?.latitude, formData.dropoff_location?.longitude));
+    
+    const hasStartTime = !!(formData.start_at && formData.start_at.trim() !== '');
+    const hasEndTime = !!(formData.end_at && formData.end_at.trim() !== '');
+    
+    return {
+      isPickupSelected,
+      isDropoffSelected,
+      hasStartTime,
+      hasEndTime,
+      isValid: isPickupSelected && isDropoffSelected && hasStartTime && hasEndTime
+    };
+  }, [formData]);
 
   return (
     <>
       <div className="fixed inset-0 z-50 lg:left-74 bg-black/50 backdrop-blur-sm"></div>
       
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 lg:left-74">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden animate-scale-up">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden animate-scale-up">
           
-          <div className="bg-gradient-to-r from-blue-800 to-cyan-600 p-6 text-white">
+          <div className="bg-gradient-to-r from-blue-800 to-cyan-600 p-6 text-white sticky top-0 z-10">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold">Create Booking</h2>
@@ -263,69 +347,130 @@ export const BookingFormModal: React.FC<{
             </div>
           </div>
 
-          <div className="p-6 max-h-[55vh] overflow-y-auto">
+          <div className="p-6 max-h-[60vh] overflow-y-auto">
             <div className="space-y-6">
-              {/* Start Time */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  Start Date & Time
-                </label>
-                <input
-                  type="datetime-local"
-                  value={formData.start_at ? formatDateTimeLocal(formData.start_at) : ""}
-                  onChange={(e) => handleFieldChange('start_at', new Date(e.target.value).toISOString())}
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                  required
-                />
+              {/* Driver Info Summary */}
+              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-4 rounded-xl">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm text-gray-600">Hourly Rate</p>
+                    <p className="text-2xl font-bold text-blue-600">${driver.hourly_rate}/hour</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Hours</p>
+                    <input
+                      type="number"
+                      value={formData.pricing.hours_requested}
+                      onChange={(e) => {
+                        const hours = parseInt(e.target.value) || 1;
+                        const endDate = formData.start_at 
+                          ? new Date(new Date(formData.start_at).getTime() + hours * 60 * 60 * 1000)
+                          : new Date();
+                        onFormDataChange({
+                          ...formData,
+                          pricing: { ...formData.pricing, hours_requested: hours },
+                          end_at: endDate.toISOString()
+                        });
+                      }}
+                      min="1"
+                      max="24"
+                      className="w-20 p-2 border border-gray-300 rounded-lg text-center"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Total</p>
+                    <p className="text-2xl font-bold text-blue-600">${totalAmount}</p>
+                  </div>
+                </div>
               </div>
 
-              {/* End Time */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                  <Clock3 className="w-4 h-4" />
-                  End Date & Time
-                </label>
-                <input
-                  type="datetime-local"
-                  value={formData.end_at ? formatDateTimeLocal(formData.end_at) : ""}
-                  onChange={(e) => handleFieldChange('end_at', new Date(e.target.value).toISOString())}
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                  required
-                />
-              </div>
+              {/* Date and Time */}
+              {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Start Date & Time <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={formData.start_at ? formatDateTimeLocal(formData.start_at) : ""}
+                    onChange={(e) => {
+                      const startDate = new Date(e.target.value);
+                      const endDate = new Date(startDate.getTime() + formData.pricing.hours_requested * 60 * 60 * 1000);
+                      handleFieldChange('start_at', startDate.toISOString());
+                      handleFieldChange('end_at', endDate.toISOString());
+                    }}
+                    className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                    required
+                  />
+                </div>
 
-              {/* Pickup Location */}
-              <LocationInput
-                label="Pickup Location"
-                icon={Navigation}
-                location={formData.pickup_location}
-                onChange={(field, value) => handleNestedChange('pickup_location', field, value)}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    End Date & Time <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={formData.end_at ? formatDateTimeLocal(formData.end_at) : ""}
+                    disabled
+                    className="w-full p-3 border border-gray-300 rounded-xl bg-gray-50"
+                  />
+                </div>
+              </div> */}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-2">
+      Start Date & Time <span className="text-red-500">*</span>
+    </label>
+    <input
+      type="datetime-local"
+      value={formData.start_at ? formatDateTimeLocal(formData.start_at) : ""}
+      onChange={(e) => {
+        if (e.target.value) {
+          const startDate = new Date(e.target.value);
+          if (!isNaN(startDate.getTime())) {
+            handleFieldChange("start_at", startDate.toISOString());
+          }
+        } else {
+          handleFieldChange("start_at", "");
+        }
+      }}
+      className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent cursor-pointer"
+      required
+    />
+  </div>
+
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-2">
+      End Date & Time <span className="text-red-500">*</span>
+    </label>
+    <input
+      type="datetime-local"
+      value={formData.end_at ? formatDateTimeLocal(formData.end_at) : ""}
+      onChange={(e) => {
+          if (e.target.value) {
+            const endDate = new Date(e.target.value);
+            if (!isNaN(endDate.getTime())) {
+              handleFieldChange("end_at", endDate.toISOString());
+            }
+          } else {
+            handleFieldChange("end_at", "");
+          }
+        }}
+      className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent cursor-pointer"
+    />
+  </div>
+</div>
+
+              {/* Combined Map Picker */}
+              <CombinedMapPicker
+                pickupLocation={formData.pickup_location}
+                dropoffLocation={formData.dropoff_location}
+                onPickupChange={handlePickupChange}
+                onDropoffChange={handleDropoffChange}
               />
 
-              {/* Dropoff Location */}
-              <LocationInput
-                label="Dropoff Location"
-                icon={MapPin}
-                location={formData.dropoff_location}
-                onChange={(field, value) => handleNestedChange('dropoff_location', field, value)}
-              />
-
-              {/* Hours Requested */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Hours Requested
-                </label>
-                <input
-                  type="number"
-                  value={formData.pricing.hours_requested}
-                  onChange={(e) => handleNestedChange('pricing', 'hours_requested', parseInt(e.target.value) || 1)}
-                  min="1"
-                  max="24"
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                  required
-                />
-              </div>
+              
 
               {/* Notes */}
               <div>
@@ -336,14 +481,14 @@ export const BookingFormModal: React.FC<{
                   value={formData.notes}
                   onChange={(e) => handleFieldChange('notes', e.target.value)}
                   placeholder="Any special instructions or requirements..."
-                  rows={3}
+                  rows={2}
                   className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
                 />
               </div>
             </div>
           </div>
 
-          <div className="border-t border-gray-200 p-6 bg-gray-50">
+          <div className="border-t border-gray-200 p-6 bg-gray-50 sticky bottom-0">
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={onClose}
@@ -353,8 +498,12 @@ export const BookingFormModal: React.FC<{
               </button>
               <button
                 onClick={onCreateBooking}
-                disabled={isCreating}
-                className="px-6 py-3 bg-gradient-to-r from-blue-800 to-cyan-600 text-white rounded-xl font-semibold shadow-lg hover:opacity-90 transition-opacity flex-1 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isCreating || !validation.isValid}
+                className={`px-6 py-3 rounded-xl font-semibold shadow-lg transition-opacity flex-1 flex items-center justify-center gap-2 ${
+                  validation.isValid && !isCreating
+                    ? 'bg-gradient-to-r from-blue-800 to-cyan-600 text-white hover:opacity-90 cursor-pointer'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
               >
                 {isCreating ? (
                   <>

@@ -65,14 +65,14 @@ const Drivers: React.FC = () => {
     pickup_location: {
       label: "Home",
       address: "",
-      latitude: -17.8292,
-      longitude: 31.053
+      latitude: 0,
+      longitude: 0
     },
     dropoff_location: {
       label: "Home",
       address: "",
-      latitude: -17.8292,
-      longitude: 31.053
+      latitude: 0,
+      longitude: 0
     },
     notes: "",
     pricing: {

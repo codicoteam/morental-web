@@ -48,24 +48,33 @@ export interface Driver {
   updated_at: string;
 }
 
+export interface Location {
+  label: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+}
+
 // New Booking Details interface
 export interface BookingFormData {
   customer_id: string;
   driver_profile_id: string;
   start_at: string;
   end_at: string;
-  pickup_location: {
-    label: string;
-    address: string;
-    latitude: number;
-    longitude: number;
-  };
-  dropoff_location: {
-    label: string;
-    address: string;
-    latitude: number;
-    longitude: number;
-  };
+  // pickup_location: {
+  //   label: string;
+  //   address: string;
+  //   latitude: number;
+  //   longitude: number;
+  // };
+  pickup_location: Location;
+  dropoff_location: Location;
+  // dropoff_location: {
+  //   label: string;
+  //   address: string;
+  //   latitude: number;
+  //   longitude: number;
+  // };
   notes: string;
   pricing: {
     currency: string;

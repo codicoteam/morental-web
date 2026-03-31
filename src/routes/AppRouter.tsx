@@ -41,6 +41,9 @@ import ServiceScheduleScreen from "../pages/admin/services/service_schedule_scre
 import ServiceOrderScreen from "../pages/admin/services/service_order_screen";
 import ChatAdminScreen from "../pages/admin/chats/chats_admin_page";
 import CreateReservation from "../pages/customer/CreateReservation";
+import ManagerDashboard from "../pages/manager/ManagerDashboard";
+import VehicleModels from "../pages/manager/VehicleModels";
+import VehicleUnitMngmnt from "../pages/manager/VehicleUnitMngnt";
 
 function App() {
   return (
@@ -89,6 +92,12 @@ function App() {
             <Route path="/agentchart" element={<AgentChatScreen/>} />
             <Route path="/agentprofile" element={<AgentProfile/>} />
              <Route path="/agentnotification" element={<AgentNotification/>} />
+
+             // Manager routes
+             <Route path="/branch-manager-dashboard" element={<ManagerDashboard />} />
+             <Route path="/manager-vehicle-models" element={<VehicleModels />}/>
+             <Route path="/manager-vehicles" element={<VehicleUnitMngmnt />}/>
+
 
        </Routes>
       </Router>

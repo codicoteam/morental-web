@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import {
+// import {
+//     fetchVehicleModels,
+//     createVehicleModel,
+//     updateVehicleModel,
+//     deleteVehicleModel,
+//     getVehicleModelErrorDisplay,
+//     type IVehicleModel,
+//     type IVehicleModelsResponse,
+//     type CreateVehicleModelPayload,
+//     type UpdateVehicleModelPayload,
+// } from "../../../Services/adminAndManager/vehicle_model_service";
+import { 
     fetchVehicleModels,
     createVehicleModel,
     updateVehicleModel,
@@ -10,8 +21,10 @@ import {
     type IVehicleModelsResponse,
     type CreateVehicleModelPayload,
     type UpdateVehicleModelPayload,
-} from "../../../Services/adminAndManager/vehicle_model_service";
-import Sidebar from "../../../components/Sidebar";
+
+ } from "../../Services/adminAndManager/vehicle_model_service";
+// import Sidebar from "../../../components/Sidebar";
+import ManagerSidebar from "../../components/ManagerSideBar";
 import {
     ArrowLeft,
     Plus,
@@ -125,7 +138,7 @@ const FEATURE_OPTIONS = [
     "Four-Wheel Drive",
 ];
 
-const VehicleModelManagement: React.FC = () => {
+const VehicleModels: React.FC = () => {
     const navigate = useNavigate();
 
     // State
@@ -615,7 +628,7 @@ const VehicleModelManagement: React.FC = () => {
     return (
         <div className="flex min-h-screen bg-gray-50 font-sans relative">
             {/* Sidebar */}
-            <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+            <ManagerSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
             {/* Main Content */}
             <div className="flex-1 overflow-auto">
@@ -2023,4 +2036,4 @@ const VehicleModelManagement: React.FC = () => {
     );
 };
 
-export default VehicleModelManagement;
+export default VehicleModels;
