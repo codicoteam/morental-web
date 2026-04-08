@@ -44,6 +44,8 @@ import CreateReservation from "../pages/customer/CreateReservation";
 import ManagerDashboard from "../pages/manager/ManagerDashboard";
 import VehicleModels from "../pages/manager/VehicleModels";
 import VehicleUnitMngmnt from "../pages/manager/VehicleUnitMngnt";
+import ManagerReservations from "../pages/manager/ReservationsPage";
+import ManagerUsersPage from "../pages/manager/ManagerUsersPage";
 
 function App() {
   return (
@@ -97,6 +99,8 @@ function App() {
              <Route path="/branch-manager-dashboard" element={<ManagerDashboard />} />
              <Route path="/manager-vehicle-models" element={<VehicleModels />}/>
              <Route path="/manager-vehicles" element={<VehicleUnitMngmnt />}/>
+             <Route path="/manager-reservations" element={<ManagerReservations />}/>
+            <Route path="/manager-users" element={<ManagerUsersPage />} />
 
 
        </Routes>

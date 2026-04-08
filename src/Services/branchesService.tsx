@@ -113,6 +113,26 @@ export const branchesService = {
     }
   },
 
+  // Get branches by manager ID
+   getBranchesByManagerId: async (managerId: string): Promise<Branch[]> => {
+  try {
+    attachToken();
+
+    const response = await axiosInstance.get<ApiResponse<Branch[]>>(`${BASE_URL}/manager/${managerId}`);
+
+    console.log("Manager Branches API Response:", response.data);
+
+    if (response.data?.success && Array.isArray(response.data.data)) {
+      return response.data.data;
+    }
+
+    throw new Error("Invalid API response format: missing data array");
+  } catch (error: any) {
+    console.error(`Failed to fetch branches for manager ${managerId}:`, error);
+    throw new Error(error.response?.data?.message || "Failed to fetch branches for manager");
+  }
+},
+
   // Get active branches only
   getActiveBranches: async (): Promise<Branch[]> => {
     try {

@@ -29,15 +29,15 @@ const ManagerSidebar = ({ isOpen = true, onClose = () => {} }: SidebarProps) => 
     { icon: LayoutDashboard, label: "Dashboard", path: "/admin-dashboard" },
 
     // Core management
-    { icon: Users, label: "Users", path: "/admin-users" },
+    { icon: Users, label: "Users", path: "/manager-users" },
 
     // Fleet
     { icon: Car, label: "Vehicle Models", path: "/manager-vehicle-models" },
     { icon: Car, label: "Vehicles", path: "/manager-vehicles" },
-    { icon: MapPin, label: "Vehicle Trackers", path: "/admin-vehicle-trackers" },
+    // { icon: MapPin, label: "Vehicle Trackers", path: "/admin-vehicle-trackers" },
 
     // Operations
-    // { icon: Calendar, label: "Reservations", path: "/admin-reservations" },
+    { icon: Calendar, label: "Reservations", path: "/manager-reservations" },
     // { icon: Wrench, label: "Service Orders", path: "/admin-service-orders" },
     // { icon: Wrench, label: "Service Schedules", path: "/admin-service-schedules" },
     // { icon: AlertTriangle, label: "Incidents & Damage", path: "/admin-vehicle-incidents" },
