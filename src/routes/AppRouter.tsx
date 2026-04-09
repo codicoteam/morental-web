@@ -46,6 +46,8 @@ import VehicleModels from "../pages/manager/VehicleModels";
 import VehicleUnitMngmnt from "../pages/manager/VehicleUnitMngnt";
 import ManagerReservations from "../pages/manager/ReservationsPage";
 import ManagerUsersPage from "../pages/manager/ManagerUsersPage";
+import ManagerServiceOrder from "../pages/manager/services/ManagerServicesOrder";
+import ManagerServiceSchedules from "../pages/manager/services/ManagerServiceSchedules";
 
 function App() {
   return (
@@ -101,6 +103,8 @@ function App() {
              <Route path="/manager-vehicles" element={<VehicleUnitMngmnt />}/>
              <Route path="/manager-reservations" element={<ManagerReservations />}/>
             <Route path="/manager-users" element={<ManagerUsersPage />} />
+            <Route path="/manager-service-orders" element= {<ManagerServiceOrder/>} />
+            <Route path="/manager-service-schedules" element={<ManagerServiceSchedules />}/>
 
 
        </Routes>

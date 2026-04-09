@@ -41,12 +41,44 @@ const getStoredUserId = (): string | null => {
 };
 
 /** ===== Types ===== */
+export interface IVehicleModelRef {
+  _id: string;
+  make: string;
+  model: string;
+  year: number;
+  class: string;
+  transmission: string;
+  fuel_type: string;
+  seats: number;
+  doors: number;
+  features: string[];
+  images?: string[];
+  createdAt: string;
+  updatedAt: string;
+  __v?: number;
+}
+
+export interface IBranchRef {
+  _id: string;
+  name: string;
+  code?: string;
+  address?: string;
+  city?: string;
+  phone?: string;
+  email?: string;
+  created_at?: string;
+  updated_at?: string;
+  __v?: number;
+}
+
 export interface IVehicleRef {
   _id: string;
   vin?: string;
   plate_number?: string;
-  vehicle_model_id?: string;
-  branch_id?: string;
+  // vehicle_model_id?: string;
+  // branch_id?: string;
+   vehicle_model_id?: string | IVehicleModelRef;  // Change this line
+  branch_id?: string | IBranchRef;  // Change this line
   odometer_km?: number | null;
   color?: string;
   status?: string;
@@ -76,7 +108,9 @@ export type ServiceOrderStatus =
 export interface IServiceOrder {
   _id: string;
 
+ 
   vehicle_id: string | IVehicleRef | null;
+  vehicle_model_id?: string | IVehicleModelRef | null;
 
   type: ServiceOrderType;
   status: ServiceOrderStatus;

@@ -38,8 +38,8 @@ const ManagerSidebar = ({ isOpen = true, onClose = () => {} }: SidebarProps) => 
 
     // Operations
     { icon: Calendar, label: "Reservations", path: "/manager-reservations" },
-    // { icon: Wrench, label: "Service Orders", path: "/admin-service-orders" },
-    // { icon: Wrench, label: "Service Schedules", path: "/admin-service-schedules" },
+    { icon: Wrench, label: "Service Orders", path: "/manager-service-orders" },
+    { icon: Wrench, label: "Service Schedules", path: "/manager-service-schedules" },
     // { icon: AlertTriangle, label: "Incidents & Damage", path: "/admin-vehicle-incidents" },
 
     // // Business setup
