@@ -72,7 +72,7 @@ const handleCancelLogout = () => {
 
     // // Business setup
     // { icon: Building2, label: "Branches", path: "/admin-branches" },
-    // { icon: ShieldCheck, label: "Rate Plans", path: "/admin-rate-plans" },
+    { icon: ShieldCheck, label: "Rate Plans", path: "/manager-rate-plans" },
     // { icon: Tag, label: "Promo Codes", path: "/admin-promo-codes" },
 
     // // Drivers feature

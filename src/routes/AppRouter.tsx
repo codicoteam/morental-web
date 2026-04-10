@@ -48,6 +48,7 @@ import ManagerReservations from "../pages/manager/ReservationsPage";
 import ManagerUsersPage from "../pages/manager/ManagerUsersPage";
 import ManagerServiceOrder from "../pages/manager/services/ManagerServicesOrder";
 import ManagerServiceSchedules from "../pages/manager/services/ManagerServiceSchedules";
+import RatePlans from "../pages/manager/rate_plans/RatePlans";
 
 function App() {
   return (
@@ -105,6 +106,8 @@ function App() {
             <Route path="/manager-users" element={<ManagerUsersPage />} />
             <Route path="/manager-service-orders" element= {<ManagerServiceOrder/>} />
             <Route path="/manager-service-schedules" element={<ManagerServiceSchedules />}/>
+            <Route path="/manager-rate-plans" element={<RatePlans />}/>
+
 
 
        </Routes>
