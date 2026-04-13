@@ -114,24 +114,7 @@ const Sidebar = ({ isOpen = true, onClose = () => {} }) => {
             const IconComponent = item.icon;
 
             return (
-              // <NavLink
-              //   key={index}
-              //   to={item.path}
-              //   className={({ isActive }) =>
-              //     `group flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-colors duration-150
-              //     ${
-              //       isActive
-              //         ? "bg-[#1EA2E4] text-white shadow-md"
-              //         : "text-gray-600 hover:text-[#1EA2E4] hover:bg-[#1EA2E4]/15"
-              //     }`
-              //   }
-              //   onClick={() => {
-              //     if (window.innerWidth < 1024) onClose();
-              //   }}
-              // >
-              //   <IconComponent className="w-5 h-5 mr-3" />
-              //   {item.label}
-              // </NavLink>
+             
               <NavLink
                 key={index}
                 to={item.path}
