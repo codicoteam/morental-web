@@ -66,6 +66,8 @@ const PromoCodesPage: React.FC = () => {
   const [branches, setBranches] = useState<IBranch[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const branchManagerId = localStorage.getItem('manager_branch_id');
+
   // Vehicle classes
   const vehicleClasses: VehicleClass[] = [
     "economy",
@@ -212,56 +214,152 @@ const PromoCodesPage: React.FC = () => {
     setIsViewModalOpen(true);
   };
 
-  // Handle add promo code
-  const handleAddPromoCode = async () => {
-    try {
-      setIsSubmitting(true);
-      const payload: CreatePromoCodePayload = {
-        ...formData,
-        // Ensure currency is included for fixed type
-        currency: formData.type === "fixed" ? (formData.currency || "USD") : undefined,
-      };
 
-      await createPromoCode(payload);
-      showSnackbar("Promo code created successfully", "success");
-      setIsAddModalOpen(false);
-      resetForm();
-      loadPromoCodes();
-    } 
-    catch (err) {
-      const errorDisplay = getErrorDisplay(err);
-      showSnackbar(errorDisplay.message, "error");
+
+  // Handle add promo code
+  // const handleAddPromoCode = async () => {
+  //   try {
+  //     setIsSubmitting(true);
+  //     const payload: CreatePromoCodePayload = {
+  //       ...formData,
+  //       // Ensure currency is included for fixed type
+  //       currency: formData.type === "fixed" ? (formData.currency || "USD") : undefined,
+        
+  //     };
+
+  //     await createPromoCode(payload);
+  //     showSnackbar("Promo code created successfully", "success");
+  //     setIsAddModalOpen(false);
+  //     resetForm();
+  //     loadPromoCodes();
+  //   } 
+  //   catch (err) {
+  //     const errorDisplay = getErrorDisplay(err);
+  //     showSnackbar(errorDisplay.message, "error");
+  //   }
+  //   finally{
+  //        setIsSubmitting(false);
+  //   }
+  // };
+
+  // Handle add promo code
+const handleAddPromoCode = async () => {
+  try {
+    setIsSubmitting(true);
+    
+   
+    
+    if (!branchManagerId) {
+      showSnackbar("Branch manager ID not found. Please login again.", "error");
+      setIsSubmitting(false);
+      return;
     }
-    finally{
-         setIsSubmitting(false);
-    }
-  };
+    
+    const payload: CreatePromoCodePayload = {
+      code: formData.code,
+      type: formData.type,
+      value: formData.value,
+      currency: formData.type === "fixed" ? (formData.currency || "USD") : undefined,
+      active: formData.active,
+      valid_from: formData.valid_from || undefined,
+      valid_to: formData.valid_to,
+      usage_limit: formData.usage_limit,
+      constraints: {
+        allowed_classes: formData.constraints?.allowed_classes || [],
+        min_days: formData.constraints?.min_days,
+        
+        branch_ids: [branchManagerId], // branchManagerId is guaranteed to be string here
+      },
+      notes: formData.notes,
+    };
+
+    await createPromoCode(payload);
+    showSnackbar("Promo code created successfully", "success");
+    setIsAddModalOpen(false);
+    resetForm();
+    loadPromoCodes();
+  } 
+  catch (err) {
+    const errorDisplay = getErrorDisplay(err);
+    showSnackbar(errorDisplay.message, "error");
+  }
+  finally {
+    setIsSubmitting(false);
+  }
+};
 
   // Handle update promo code
-  const handleUpdatePromoCode = async () => {
-    if (!selectedPromoCode) return;
+  // const handleUpdatePromoCode = async () => {
+  //   if (!selectedPromoCode) return;
 
-    try {
-      setIsSubmitting(true);
-      const payload: UpdatePromoCodePayload = {
-        ...formData,
-        currency: formData.type === "fixed" ? (formData.currency || "USD") : undefined,
-      };
+  //   try {
+  //     setIsSubmitting(true);
+  //     const payload: UpdatePromoCodePayload = {
+  //       ...formData,
+  //       currency: formData.type === "fixed" ? (formData.currency || "USD") : undefined,
+  //     };
 
-      await updatePromoCode(selectedPromoCode._id, payload);
-      showSnackbar("Promo code updated successfully", "success");
-      setIsEditModalOpen(false);
-      setSelectedPromoCode(null);
-      loadPromoCodes();
+  //     await updatePromoCode(selectedPromoCode._id, payload);
+  //     showSnackbar("Promo code updated successfully", "success");
+  //     setIsEditModalOpen(false);
+  //     setSelectedPromoCode(null);
+  //     loadPromoCodes();
+  //   }
+  //    catch (err) {
+  //     const errorDisplay = getErrorDisplay(err);
+  //     showSnackbar(errorDisplay.message, "error");
+  //   }
+  //   finally{
+  //        setIsSubmitting(false);
+  //   }
+  // };
+
+  // Handle update promo code
+const handleUpdatePromoCode = async () => {
+  if (!selectedPromoCode) return;
+
+  try {
+    setIsSubmitting(true);
+    
+       
+    if (!branchManagerId) {
+      showSnackbar("Branch manager ID not found. Please login again.", "error");
+      setIsSubmitting(false);
+      return;
     }
-     catch (err) {
-      const errorDisplay = getErrorDisplay(err);
-      showSnackbar(errorDisplay.message, "error");
-    }
-    finally{
-         setIsSubmitting(false);
-    }
-  };
+    
+    const payload: UpdatePromoCodePayload = {
+      code: formData.code,
+      type: formData.type,
+      value: formData.value,
+      currency: formData.type === "fixed" ? (formData.currency || "USD") : undefined,
+      active: formData.active,
+      valid_from: formData.valid_from || undefined,
+      valid_to: formData.valid_to,
+      usage_limit: formData.usage_limit,
+      constraints: {
+        allowed_classes: formData.constraints?.allowed_classes || [],
+        min_days: formData.constraints?.min_days,
+        
+        branch_ids: [branchManagerId], 
+      },
+      notes: formData.notes,
+    };
+
+    await updatePromoCode(selectedPromoCode._id, payload);
+    showSnackbar("Promo code updated successfully", "success");
+    setIsEditModalOpen(false);
+    setSelectedPromoCode(null);
+    loadPromoCodes();
+  }
+  catch (err) {
+    const errorDisplay = getErrorDisplay(err);
+    showSnackbar(errorDisplay.message, "error");
+  }
+  finally {
+    setIsSubmitting(false);
+  }
+};
 
   // Handle delete promo code
   const handleDeletePromoCode = async (promoCodeId: string) => {
@@ -502,21 +600,6 @@ const PromoCodesPage: React.FC = () => {
                     <Tag className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
 
-                  <div className="relative">
-                    <select
-                      value={branchFilter}
-                      onChange={(e) => setBranchFilter(e.target.value)}
-                      className="px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1EA2E4] bg-white appearance-none pr-10 min-w-[160px]"
-                    >
-                      <option value="all">All Branches</option>
-                      {uniqueBranches.map((branch) => (
-                        <option key={branch._id} value={branch._id}>
-                          {branch.name}
-                        </option>
-                      ))}
-                    </select>
-                    <Building className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  </div>
                 </div>
               </div>
             </div>
@@ -1373,7 +1456,7 @@ const PromoCodesPage: React.FC = () => {
                       </div>
                       
                       {/* Branch Restrictions */}
-                      <div>
+                      {/* <div>
                         <label className="block text-sm font-medium text-gray-700 mb-3">
                           Allowed Branches
                         </label>
@@ -1405,6 +1488,18 @@ const PromoCodesPage: React.FC = () => {
                             </p>
                           </>
                         )}
+                      </div> */}
+                      {/* Branch Restrictions - REMOVED - Branch manager ID will be automatically included */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-3">
+                          Branch (Auto-assigned from your profile)
+                        </label>
+                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Building className="w-4 h-4 text-gray-400" />
+                            <span>This promo code will be automatically assigned to your branch</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
 

@@ -5,6 +5,26 @@ import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import { loginUser } from "../../features/auth/authThunks";
 import { resetAuthError } from "../../features/auth/authSlice";
 import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { branchesService } from '../../Services/branchesService';
+
+// API call to get manager's branch
+const getAndStoreManagerBranch = async (managerId: string) => {
+  try {
+    const branches = await branchesService.getBranchesByManagerId(managerId);
+    
+    if (branches && branches.length > 0) {
+      // Store the first branch's ID (or you can store all if needed)
+      const branchId = branches[0]._id;
+      localStorage.setItem('manager_branch_id', branchId);
+     
+      return branchId;
+    }
+    return null;
+  } catch (error) {
+    console.error('Failed to fetch manager branches:', error);
+    return null;
+  }
+};
 
 export default function SignInScreen() {
   const [showPassword, setShowPassword] = useState(false);
@@ -57,16 +77,18 @@ export default function SignInScreen() {
         user.roles?.[0] ||
         'customer';
 
-      console.log('Login successful!', { user, token, selectedRole: role });
+     
+    if (role === 'manager' || role === 'branch-manager') {
+      getAndStoreManagerBranch(user._id).then(() => {
+        window.location.href = '/branch-manager-dashboard';
+      });
+    } else {
 
       switch (role) {
         case 'admin':
           window.location.href = '/admin-dashboard';
           break;
-        case 'manager':           // enum in backend
-        case 'branch-manager':    // keep supporting your old naming
-          window.location.href = '/branch-manager-dashboard';
-          break;
+       
         case 'agent':
           window.location.href = '/agentdashboard';
           break;
@@ -79,7 +101,8 @@ export default function SignInScreen() {
           break;
       }
     }
-  }, [status, user, token, selectedRole, navigate]);
+    }
+  },  [status, user, token, selectedRole, navigate]);
 
   useEffect(() => {
     if (error) console.error('Login error:', error);

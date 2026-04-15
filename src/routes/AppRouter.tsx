@@ -50,6 +50,8 @@ import ManagerServiceOrder from "../pages/manager/services/ManagerServicesOrder"
 import ManagerServiceSchedules from "../pages/manager/services/ManagerServiceSchedules";
 import RatePlans from "../pages/manager/rate_plans/RatePlans";
 import PromoCodesPage from "../pages/manager/promocodes/PromoCodesPage";
+import VehicleIncidents from "../pages/manager/vehicle_incidents/VehicleIncidents";
+import ManagerDriverBookings from "../pages/manager/driver_bookings/ManagerDriverBookings";
 
 function App() {
   return (
@@ -109,6 +111,8 @@ function App() {
             <Route path="/manager-service-schedules" element={<ManagerServiceSchedules />}/>
             <Route path="/manager-rate-plans" element={<RatePlans />}/>
             <Route path="/manager-promo-codes" element={<PromoCodesPage />}/>
+             <Route path="/manager-vehicle-incidents" element={<VehicleIncidents />}/>
+            <Route path="/manager-driver-bookings" element={<ManagerDriverBookings />}/>
            
 
 

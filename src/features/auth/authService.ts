@@ -192,6 +192,7 @@ function extractErrorMessage(error: unknown): string {
 export function clearAuthStorage() {
   try {
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem('manager_branch_id');
   } catch (e) {
     console.error("Failed to clear auth storage:", e);
   }
@@ -278,6 +279,7 @@ export const authService = {
       );
 
       const { user, token } = normalizeAuthResponse(res.data);
+      
 
       setAuthToken(token);
       saveAuthToStorage({ token, user });

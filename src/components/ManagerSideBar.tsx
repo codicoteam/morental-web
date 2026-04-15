@@ -71,13 +71,13 @@ const handleCancelLogout = () => {
     { icon: AlertTriangle, label: "Incidents & Damage", path: "/manager-vehicle-incidents" },
 
     // // Business setup
-    // { icon: Building2, label: "Branches", path: "/admin-branches" },
+    
     { icon: ShieldCheck, label: "Rate Plans", path: "/manager-rate-plans" },
     { icon: Tag, label: "Promo Codes", path: "/manager-promo-codes" },
 
     // // Drivers feature
     // { icon: UserCheck, label: "Driver Profiles", path: "/admin-driver-profiles" },
-    // { icon: Calendar, label: "Driver Bookings", path: "/admin-driver-bookings" },
+    { icon: Calendar, label: "Driver Bookings", path: "/manager-driver-bookings"},
 
     // // Finance & comms
     // { icon: CreditCard, label: "Payments", path: "/admin-payments" },

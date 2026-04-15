@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { Clock, Search, Menu, Phone, Mail, AlertCircle, Filter, X, Eye, User, Car, CreditCard, FileText, CalendarDays, Tag, Gauge, Shield, Image, Store } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
-import { branchesService } from '../../Services/branchesService';
 import ManagerSidebar from '../../components/ManagerSideBar';
 import { fetchReservations } from '../../features/reservation/reservationthunks';
 import { selectReservations, selectReservationsLoading, selectReservationsError } from '../../features/reservation/reservationSelectors';
@@ -183,45 +182,10 @@ const getManagerBranchId = (): string | null => {
 };
 
  // Fetch manager's branches based on user ID from localStorage
-const fetchManagerBranches = async () => {
-  try {
-    setLoadingBranches(true);
-    
-    // Get auth data from localStorage
-    const authData = getAuthFromLocalStorage();
-    
-    if (!authData || !authData.user || !authData.user._id) {
-      console.error('No user ID found in localStorage');
-      return;
-    }
-    
-    const managerId = authData.user._id;
-    console.log('Manager ID from localStorage:', managerId);
-    
-    // Fetch branches for this manager
-    const branches = await branchesService.getBranchesByManagerId(managerId);
-    setManagerBranches(branches);
-    
-    // Set first branch as selected if available
-    if (branches.length > 0) {
-      setSelectedBranch(branches[0]);
 
-       // Store branch ID in localStorage
-      localStorage.setItem('manager_branch_id', branches[0]._id);
-      localStorage.setItem('manager_branch_data', JSON.stringify(branches[0]));
-      console.log('Branch ID stored in localStorage:', branches[0]._id);
-    }
-    
-    console.log('Manager branches:', branches);
-  } catch (error) {
-    console.error('Error fetching manager branches:', error);
-  } finally {
-    setLoadingBranches(false);
-  }
-};
 
   useEffect(() => {
-     fetchManagerBranches();
+    
     dispatch(fetchReservations());
    
   }, [dispatch]);
@@ -331,7 +295,7 @@ const filterReservationsByBranch = (reservationsList: TransformedReservation[]):
     return [];
   }
   
-  console.log('Filtering reservations for branch ID:', managerBranchId);
+  
   
   // Get pickup and dropoff branch IDs from the reservation data
   // Note: You need to add pickupBranchId and dropoffBranchId to your TransformedReservation interface
