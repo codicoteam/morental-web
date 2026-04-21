@@ -650,7 +650,7 @@ const AdminUserProfilePage: React.FC = () => {
                               <div className="pt-2">
                                 <p className="text-xs text-gray-500 mb-1">Driver's License:</p>
                                 <button
-                                  onClick={() => openImageViewer(profile.driver_license.imageUrl!)}
+                                  onClick={() => openImageViewer(profile.driver_license?.imageUrl!)}
                                   className="inline-flex items-center gap-1 text-sm text-[#1EA2E4] hover:underline"
                                 >
                                   <ImageIcon className="w-4 h-4" />
@@ -884,10 +884,10 @@ const AdminUserProfilePage: React.FC = () => {
                                   src={selectedProfile.driver_license.imageUrl}
                                   alt="Driver's License"
                                   className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                                  onClick={() => openImageViewer(selectedProfile.driver_license.imageUrl!)}
+                                  onClick={() => openImageViewer(selectedProfile.driver_license?.imageUrl!)}
                                 />
                                 <button
-                                  onClick={() => openImageViewer(selectedProfile.driver_license.imageUrl!)}
+                                  onClick={() => openImageViewer(selectedProfile.driver_license?.imageUrl!)}
                                   className="absolute bottom-2 right-2 bg-white/80 hover:bg-white px-2 py-1 rounded text-sm text-gray-700 hover:text-gray-900 transition-colors flex items-center gap-1"
                                 >
                                   <Maximize2 className="w-3 h-3" />

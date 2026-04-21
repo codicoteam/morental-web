@@ -384,7 +384,8 @@ const UsersPage: React.FC = () => {
                               </span>
                               {user.email_verified && (
                                 <CheckCircle className="w-4 h-4 text-green-500"
-                                 title="Email Verified"
+                                 
+                                  aria-label="Email Verified"
                                   />
                               )}
                             </div>

@@ -180,10 +180,36 @@ const ServiceScheduleScreen: React.FC = () => {
     
     setSelectedVehicle(vehicle);
     setSelectedVehicleModel(vehicleModel);
+
+     let vehicleId: string | null = null;
+      if (schedule.vehicle_id) {
+        if (typeof schedule.vehicle_id === 'object') {
+          const vehicleObj = schedule.vehicle_id as IVehicleRef;
+          vehicleId = vehicleObj._id;
+          // Find the full vehicle object from vehicles array
+          vehicle = vehicles.find(v => v._id === vehicleObj._id) || null;
+        } else if (typeof schedule.vehicle_id === 'string') {
+          vehicleId = schedule.vehicle_id;
+          vehicle = vehicles.find(v => v._id === schedule.vehicle_id) || null;
+        }
+      }
+
+       // Extract vehicle model ID (handle both string and object)
+        let vehicleModelId: string | null = null;
+        if (schedule.vehicle_model_id) {
+          if (typeof schedule.vehicle_model_id === 'object') {
+            const modelObj = schedule.vehicle_model_id as IVehicleModelRef;
+            vehicleModelId = modelObj._id;
+            vehicleModel = modelObj;
+          } else if (typeof schedule.vehicle_model_id === 'string') {
+            vehicleModelId = schedule.vehicle_model_id;
+            vehicleModel = vehicleModels.find(m => m._id === schedule.vehicle_model_id) || null;
+          }
+        }
     
     setFormData({
-      vehicle_id: schedule.vehicle_id || null,
-      vehicle_model_id: schedule.vehicle_model_id || null,
+      vehicle_id: vehicleId,
+      vehicle_model_id: vehicleModelId,
       interval_km: schedule.interval_km || null,
       interval_days: schedule.interval_days || null,
       next_due_at: schedule.next_due_at || null,
@@ -289,7 +315,7 @@ const ServiceScheduleScreen: React.FC = () => {
     const matchesSearch =
       searchTerm === "" ||
       (schedule.notes && schedule.notes.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      getVehicleInfo(schedule).makeModel.toLowerCase().includes(searchTerm.toLowerCase());
+      getVehicleInfo(schedule).make.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus = 
       statusFilter === "all" ||

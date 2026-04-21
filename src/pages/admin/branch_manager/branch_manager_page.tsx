@@ -12,6 +12,7 @@ import {
     type UpdateBranchPayload,
     type IBranchAddress,
     type IBranchGeo,
+    type IOpeningHourSlot,
     type OpeningHours,
     type DayKey,
 } from "../../../Services/adminAndManager/admin_branch_service";
@@ -243,22 +244,23 @@ const BranchManagementScreen: React.FC = () => {
     };
 
     // Remove time slot for a day
-    const removeTimeSlot = (day: DayKey, index: number) => {
-        setFormData((prev) => {
-            const currentHours = prev.opening_hours || {};
-            const dayHours = currentHours[day] || [];
+  
+ const removeTimeSlot = (day: DayKey, index: number) => {
+    setFormData((prev) => {
+        const currentHours = prev.opening_hours || {};
+        const dayHours = currentHours[day] || [];
 
-            const updatedHours = dayHours.filter((_, i) => i !== index);
+        const updatedHours = dayHours.filter((_: { open: string; close: string }, i: number) => i !== index);
 
-            return {
-                ...prev,
-                opening_hours: {
-                    ...currentHours,
-                    [day]: updatedHours.length > 0 ? updatedHours : undefined,
-                },
-            };
-        });
-    };
+        return {
+            ...prev,
+            opening_hours: {
+                ...currentHours,
+                [day]: updatedHours.length > 0 ? updatedHours : undefined,
+            },
+        };
+    });
+};
 
     // Filter branches
     const filteredBranches = branches.filter((branch) => {
@@ -1152,7 +1154,7 @@ const BranchManagementScreen: React.FC = () => {
                                                                 </div>
                                                             ) : (
                                                                 <div className="space-y-3">
-                                                                    {slots.map((slot, index) => (
+                                                                    {slots.map((slot: IOpeningHourSlot, index: number) => (
                                                                         <div
                                                                             key={index}
                                                                             className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg"

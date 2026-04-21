@@ -205,13 +205,25 @@ const RatePlanScreen: React.FC = () => {
         else if (ratePlan.vehicle_model_id) type = "vehicle_model";
         
         setSelectedRatePlanType(type);
+          let vehicleIdValue: string | null = null;
+            if (ratePlan.vehicle_id) {
+                vehicleIdValue = typeof ratePlan.vehicle_id === 'string' 
+                    ? ratePlan.vehicle_id 
+                    : ratePlan.vehicle_id?._id || null;
+            }
+             // Convert fees amount to string
+            const convertedFees = ratePlan.fees?.map(fee => ({
+                code: fee.code,
+                amount: normalizeDecimal(fee.amount) || ""
+            })) || [];
+        
 
         setFormData({
             name: ratePlan.name,
             branch_id: typeof ratePlan.branch_id === 'string' ? ratePlan.branch_id : ratePlan.branch_id?._id || "",
             vehicle_class: ratePlan.vehicle_class,
             vehicle_model_id: ratePlan.vehicle_model_id || null,
-            vehicle_id: ratePlan.vehicle_id || null,
+            vehicle_id: vehicleIdValue,
             currency: ratePlan.currency,
             daily_rate: normalizeDecimal(ratePlan.daily_rate) || "0.00",
             weekly_rate: normalizeDecimal(ratePlan.weekly_rate) || "",
@@ -225,7 +237,7 @@ const RatePlanScreen: React.FC = () => {
                 weekend_rate: normalizeDecimal(override.weekend_rate) || "",
             })) || [],
             taxes: ratePlan.taxes || [],
-            fees: ratePlan.fees || [],
+            fees: convertedFees,
             active: ratePlan.active || true,
             valid_from: ratePlan.valid_from || "",
             valid_to: ratePlan.valid_to || null,
@@ -510,12 +522,21 @@ const RatePlanScreen: React.FC = () => {
     };
 
     // Get display name for vehicle unit
-    const getVehicleUnitName = (unitId: string | null) => {
-        if (!unitId) return "N/A";
+   const getVehicleUnitName = (unitId: string | { _id?: string; vin?: string; plate_number?: string } | null) => {
+    if (!unitId) return "N/A";
+    // If it's an object with vin and plate_number
+    if (typeof unitId === 'object' && unitId !== null) {
+        const vin = unitId.vin || '';
+        const plateNumber = unitId.plate_number || '';
+        return `${vin} (${plateNumber})`;
+    }
+    // If it's a string ID, look it up in vehicleUnits array
+    if (typeof unitId === 'string') {
         const unit = vehicleUnits.find(u => u._id === unitId);
         return unit ? `${unit.vin} (${unit.plate_number})` : unitId;
-    };
-
+    }
+    return "N/A";
+};
     return (
         <div className="flex min-h-screen bg-gray-50 font-sans">
             {/* Sidebar */}

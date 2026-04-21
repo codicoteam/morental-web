@@ -190,7 +190,7 @@ const ServiceOrderScreen: React.FC = () => {
     setSelectedVehicle(vehicle);
     
     setFormData({
-      vehicle_id: order.vehicle_id || null,
+      // vehicle_id: order.vehicle_id || null,
       type: order.type || "scheduled_service",
       status: order.status || "open",
       odometer_km: order.odometer_km || null,
