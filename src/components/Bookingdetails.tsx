@@ -64,23 +64,7 @@ interface PaymentData {
   guid?: string;
 }
 
-interface ReservationResponse {
-  _id: string;
-  id?: string;
-  code: string;
-  vehicle_id: any;
-  vehicle_model_id: any;
-  pickup: any;
-  dropoff: any;
-  pricing: any;
-  payment_summary: any;
-  driver_snapshot: any;
-  notes: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  __v: number;
-}
+
 
 const BookingDetails = ({ 
   pricing, 

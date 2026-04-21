@@ -15,8 +15,7 @@ import {
 import {
   fetchVehicleUnits,
   type IVehicleUnit,
-  type VehicleStatus,
-  type AvailabilityState,
+ 
 } from "../../../Services/adminAndManager/vehicle_units_services";
 import {
   Search,
@@ -34,32 +33,18 @@ import {
   Car,
   Wrench,
   Gauge,
-  MapPin,
+  
   RefreshCw,
-  ChevronDown,
-  ChevronUp,
+  
   Save,
   Tag,
-  Info,
+  
   AlertTriangle,
-  Check,
-  XCircle,
-  Clock3,
+ 
   BarChart3,
-  Sparkles,
-  FileText,
-  CalendarClock,
-  TrendingUp,
-  Package,
-  Layers,
-  Zap,
-  Shield,
+ 
   Building,
-  Hash,
-  Copy,
-  Target,
-  Users,
-  Ticket,
+ 
 } from "lucide-react";
 
 const ServiceScheduleScreen: React.FC = () => {

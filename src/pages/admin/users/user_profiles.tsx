@@ -59,7 +59,7 @@ const sanitizeFilename = (filename: string): string => {
 };
 
 // File upload function
-const uploadFileToSupabase = async (file: File, bucket: string, setProgress?: (progress: number) => void): Promise<string> => {
+const uploadFileToSupabase = async (file: File, bucket: string, _setProgress?: (progress: number) => void): Promise<string> => {
   const sanitizedFileName = sanitizeFilename(file.name);
   const fileName = `${Date.now()}_${sanitizedFileName}`;
 
