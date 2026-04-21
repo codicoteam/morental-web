@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import { ThemeProvider } from "../components/ThemeProvider";
 import Welcome from "../pages/public/WelcomePage";
 import Dashboard from "../pages/admin/AdminDashboardPage";
-import Vehicles from "../pages/admin/VehiclesPage";
 import Bookings from "../pages/admin/BookingsPage";
 import Customers from "../pages/admin/CustomersPage";
 import Staff from "../pages/admin/StaffPage";
@@ -17,7 +16,6 @@ import Reservation from "../pages/customer/CustomerReservationsPage";
 import Service from "../pages/customer/CustomerServicePage";
 import Profile from "../pages/customer/CustomerProfilePage";
 import Drivers from "../pages/customer/CustomerDriversPage";
-import BookingPage from "../pages/customer/Bookingpage";
 import ChatScreen from "../pages/customer/Chat";
 import NotificationScreen from "../pages/customer/notification";
 //Agent Pages
@@ -52,6 +50,7 @@ import RatePlans from "../pages/manager/rate_plans/RatePlans";
 import PromoCodesPage from "../pages/manager/promocodes/PromoCodesPage";
 import VehicleIncidents from "../pages/manager/vehicle_incidents/VehicleIncidents";
 import ManagerDriverBookings from "../pages/manager/driver_bookings/ManagerDriverBookings";
+import DriverProfilesPage from "../pages/manager/driver_profiles/DriverProfilesPage";
 
 function App() {
   return (
@@ -113,6 +112,7 @@ function App() {
             <Route path="/manager-promo-codes" element={<PromoCodesPage />}/>
              <Route path="/manager-vehicle-incidents" element={<VehicleIncidents />}/>
             <Route path="/manager-driver-bookings" element={<ManagerDriverBookings />}/>
+            <Route path="/manager-driver-profiles" element={<DriverProfilesPage />}/>
            
 
 
